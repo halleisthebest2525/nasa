@@ -1,0 +1,271 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@500;600;700;800&display=swap');
+
+:root {
+  color-scheme: dark;
+  --accent: #b59a70;
+  --muted: #777b78;
+  --panel: rgba(12, 13, 13, 0.88);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #080a0c;
+  color: #d4d1c9;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+#game {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+}
+
+canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.topbar, .bottom-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 30px;
+  pointer-events: none;
+}
+
+.topbar {
+  top: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  font-size: 27px;
+  color: var(--accent);
+}
+
+.brand strong {
+  display: block;
+  font: 800 22px 'Barlow Condensed', sans-serif;
+  letter-spacing: 3px;
+}
+
+.brand small {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+
+.status, .eyebrow, .bottom-bar {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.status-dot, .mission-dot, .warning-dot {
+  width: 7px;
+  height: 7px;
+  background: #8b967c;
+  display: inline-block;
+}
+
+.warning-dot {
+  background: #b17a53;
+}
+
+.panel {
+  position: absolute;
+  top: 105px;
+  width: 210px;
+  padding: 17px 18px;
+  background: var(--panel);
+  border: 1px solid #333330;
+  box-shadow: 0 12px 40px #0008;
+}
+
+.hud-left {
+  left: 30px;
+}
+
+.hud-right {
+  right: 30px;
+}
+
+.eyebrow {
+  font-size: 9px;
+  color: #999386;
+  margin-bottom: 13px;
+}
+
+.ship-name {
+  font: 700 19px 'Barlow Condensed', sans-serif;
+  letter-spacing: 1.5px;
+  margin-bottom: 17px;
+}
+
+.ship-name span {
+  font: 10px 'Share Tech Mono';
+  color: var(--muted);
+}
+
+.stat-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 10px 0 7px;
+}
+
+.stat-row span {
+  font-size: 9px;
+  color: var(--muted);
+  margin-right: auto;
+}
+
+.stat-row strong {
+  font-size: 17px;
+  color: #dedbd2;
+}
+
+.stat-row small {
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.meter {
+  height: 3px;
+  background: #292a27;
+  margin-bottom: 14px;
+}
+
+.meter i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+}
+
+.meter.hull i {
+  width: 100%;
+  background: #858d76;
+}
+
+.environment-title {
+  font: 700 23px 'Barlow Condensed', sans-serif;
+  letter-spacing: 2px;
+  margin: 15px 0 20px;
+  color: #c8c2b5;
+}
+
+.environment-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid #333330;
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.environment-info b,
+.environment-info small {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
+.environment-info small {
+  font-size: 8px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.bottom-bar {
+  bottom: 0;
+  padding: 18px 30px;
+}
+
+.controls {
+  display: flex;
+  gap: 19px;
+  align-items: center;
+}
+
+.controls span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+}
+
+.controls kbd {
+  min-width: 19px;
+  height: 19px;
+  padding: 3px 5px;
+  text-align: center;
+  border: 1px solid #46443e;
+  background: #171816;
+  color: #d4d1c9;
+  font: 10px 'Share Tech Mono';
+}
+
+.coords {
+  font-size: 9px;
+}
+
+@media(max-width: 650px) {
+  .topbar, .bottom-bar {
+    padding: 14px;
+  }
+
+  .panel {
+    top: 78px;
+    width: 155px;
+    padding: 12px;
+  }
+
+  .hud-left {
+    left: 12px;
+  }
+
+  .hud-right {
+    right: 12px;
+  }
+
+  .controls {
+    gap: 7px;
+    flex-wrap: wrap;
+    max-width: 65%;
+  }
+
+  .controls span {
+    font-size: 8px;
+  }
+
+  .coords {
+    font-size: 7px;
+  }
+}

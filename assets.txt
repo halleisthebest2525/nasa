@@ -1,0 +1,8 @@
+# STARFALL IMAGE ASSETS
+# Format: asset_name=./img/filename.extension
+
+ship_space=./img/spaceship.jpg
+ship_moon=./img/spaceship.jpg
+player=./img/player.png
+moon_surface=./img/moon_surface.png
+crater=./img/crater.png

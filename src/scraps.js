@@ -21,7 +21,7 @@ export class ScrapSystem {
   }
 
   generate() {
-    const count = 8 + Math.floor(Math.random() * 8);
+    const count = 20 + Math.floor(Math.random() * 11);
     const rarityPool = [
       ...Array(68).fill('common'),
       ...Array(25).fill('rare'),

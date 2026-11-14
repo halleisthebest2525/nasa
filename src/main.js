@@ -82,7 +82,7 @@ function isMovingOnFoot() {
 function isRunning() {
   return heldKeys.has('shift') &&
     isMovingOnFoot() &&
-    survival.stamina > 0;
+    survival.canRun();
 }
 
 // RENDERING
@@ -1379,7 +1379,62 @@ function handleImpact() {
 
   console.log(`COLLISION! -${damage}% HULL. Remaining: ${hull}%`);
 }
+function showEmergencyFuelMessage() {
+  const message = document.createElement('div');
 
+  message.textContent =
+    'NASA EMERGENCY TRANSMISSION\n' +
+    'EMERGENCY FUEL DEPLOYED\n' +
+    'ONE-TIME REFILL GRANTED';
+
+  message.style.cssText = `
+    position:fixed;
+    top:25%;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:150;
+    padding:20px 28px;
+    background:rgba(10,18,22,.96);
+    border:1px solid #77b9d4;
+    color:#bde9f5;
+    font:bold 14px monospace;
+    letter-spacing:2px;
+    line-height:2;
+    text-align:center;
+    white-space:pre-line;
+  `;
+
+  document.body.appendChild(message);
+  setTimeout(() => message.remove(), 6500);
+}
+
+function handleFuelDepletion() {
+  if (survival.fuel > 0 || gameOver) return;
+
+  if (survival.emergencyFuelUsed) {
+    gameOver = true;
+
+    ship.vx = 0;
+    ship.vy = 0;
+    ship.boosting = false;
+
+    gameOverScreen.children[0].textContent = 'FUEL DEPLETED';
+    gameOverScreen.children[1].textContent = 'SHIP FUEL: 0%';
+    gameOverScreen.children[2].textContent =
+      'NASA EMERGENCY SUPPORT EXHAUSTED';
+
+    gameOverScreen.style.display = 'flex';
+    return;
+  }
+
+  if ((moonSurface.scraps.credits ?? 0) > 0) return;
+
+  survival.emergencyFuelUsed = true;
+  survival.fuel = survival.maxFuel;
+
+  showEmergencyFuelMessage();
+  saveCurrentGame('Autosave');
+}
 // COLLISION DETECTION
 function checkCollisions() {
   for (const asteroid of world.asteroids) {
@@ -1502,6 +1557,8 @@ function createSnapshot() {
       oxygen: survival.oxygen,
       health: survival.health,
       stamina: survival.stamina,
+      emergencyFuelUsed: survival.emergencyFuelUsed,
+      staminaExhausted: survival.staminaExhausted,
       detectorOn: survival.detectorOn,
       detectorFlash: survival.detectorFlash,
       detectorLit: survival.detectorLit
@@ -1533,8 +1590,7 @@ function createSnapshot() {
 }
 
 function saveCurrentGame(name = 'Expedition') {
-  const snapshot = createSnapshot();
-  const saved = writeSave(name, snapshot);
+  const saved = writeSave(name, createSnapshot());
 
   window.dispatchEvent(new CustomEvent('nasareth:saves-updated'));
 
@@ -1711,6 +1767,8 @@ function frame(time) {
             moduleStats
           );
 
+          handleFuelDepletion();
+
           ship.update(
             dt,
             survival.fuel > 0,
@@ -1719,10 +1777,10 @@ function frame(time) {
 
           checkCollisions();
         } else if (gameMode === 'walking') {
-          onFoot.update(dt);
+          onFoot.update(dt, survival.canRun());
           survival.updateStamina(dt, isRunning());
         } else if (gameMode === 'moon') {
-          moonSurface.update(dt);
+          moonSurface.update(dt, survival.canRun());
 
           survival.updateMoon(dt, isRunning());
 

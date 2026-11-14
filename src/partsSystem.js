@@ -177,8 +177,8 @@ export function attachPartsSystem(moonSurface) {
   // Keep the existing scrap update unchanged.
   const originalUpdate = moonSurface.update.bind(moonSurface);
 
-  moonSurface.update = function(dt) {
-    originalUpdate(dt);
+  moonSurface.update = function(dt, canRun = true) {
+  originalUpdate(dt, canRun);
 
     if (moonSurface.scraps.inventoryOpen) return;
 

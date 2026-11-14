@@ -3,11 +3,13 @@ export class Survival {
   constructor() {
     this.fuel = 100;
     this.maxFuel = 100;
+    this.emergencyFuelUsed = false;
 
     this.shipOxygen = 100;
     this.oxygen = 100;
     this.health = 100;
     this.stamina = 100;
+    this.staminaExhausted = false;
 
     this.detectorOn = false;
     this.detectorFlash = 0;
@@ -39,23 +41,31 @@ export class Survival {
     this.oxygen = Math.max(0, this.oxygen - 0.35 * dt);
 
     if (this.oxygen <= 0) {
-      this.health = Math.max(0, this.health - 0.8 * dt);
+        this.health = Math.max(0, this.health - 0.8 * dt);
     }
 
-    if (running && this.stamina > 0) {
-      this.stamina = Math.max(0, this.stamina - 28 * dt);
-    } else {
-      this.stamina = Math.min(100, this.stamina + 8 * dt);
+    this.updateStamina(dt, running);
     }
-  }
 
-  updateStamina(dt, running) {
-    if (running && this.stamina > 0) {
-      this.stamina = Math.max(0, this.stamina - 28 * dt);
+    updateStamina(dt, running) {
+    if (running && !this.staminaExhausted && this.stamina > 0) {
+        this.stamina = Math.max(0, this.stamina - 28 * dt);
+
+        if (this.stamina <= 0) {
+        this.staminaExhausted = true;
+        }
     } else {
-      this.stamina = Math.min(100, this.stamina + 8 * dt);
+        this.stamina = Math.min(100, this.stamina + 8 * dt);
+
+        if (this.stamina >= 20) {
+        this.staminaExhausted = false;
+        }
     }
-  }
+    }
+
+    canRun() {
+    return !this.staminaExhausted && this.stamina > 0;
+    }
 
   refillSuit() {
     const amount = Math.min(100 - this.oxygen, this.shipOxygen);

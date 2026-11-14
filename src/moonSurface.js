@@ -136,7 +136,7 @@ export class MoonSurface {
     ) <= SHIP_DISTANCE;
   }
 
-  update(dt) {
+  update(dt, canRun = true) {
     this.scraps.update(this.x, this.y, dt);
 
     if (this.scraps.inventoryOpen) {

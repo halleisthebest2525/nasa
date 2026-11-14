@@ -1274,15 +1274,41 @@ function drawParticles(context) {
     context.restore();
   }
 }
+function getNearestDetectorTarget() {
+  const x = moonSurface.x;
+  const y = moonSurface.y;
 
+  const nearestScrap =
+    moonSurface.scraps.getNearestUncollected(x, y);
+
+  const nearestPart =
+    partsSystem.getNearestUncollected(x, y);
+
+  if (!nearestScrap && !nearestPart) return null;
+
+  if (!nearestPart) {
+    return {
+      ...nearestScrap,
+      targetType: 'SCRAP'
+    };
+  }
+
+  if (!nearestScrap) {
+    return {
+      ...nearestPart,
+      targetType: 'MODULE'
+    };
+  }
+
+  return nearestPart.distance < nearestScrap.distance
+    ? { ...nearestPart, targetType: 'MODULE' }
+    : { ...nearestScrap, targetType: 'SCRAP' };
+}
 // SURVIVAL EQUIPMENT DISPLAY
 function drawSurvivalEquipment(context) {
   // METAL DETECTOR
   if (gameMode === 'moon' && survival.detectorOn) {
-    const nearest = moonSurface.scraps.getNearestUncollected(
-      moonSurface.x,
-      moonSurface.y
-    );
+    const nearest = getNearestDetectorTarget();
 
     context.save();
 
@@ -1308,7 +1334,9 @@ function drawSurvivalEquipment(context) {
     context.fillStyle = '#a8ad9d';
     context.font = '10px monospace';
     context.fillText(
-      nearest ? `${Math.round(nearest.distance)}m · SIGNAL` : 'NO SIGNAL',
+      nearest
+        ? `${nearest.targetType} ${Math.round(nearest.distance)}m`
+        : 'NO SIGNAL',
       53,
       57
     );
@@ -1563,7 +1591,6 @@ function createSnapshot() {
       detectorFlash: survival.detectorFlash,
       detectorLit: survival.detectorLit
     },
-
     moon: {
       x: moonSurface.x,
       y: moonSurface.y,
@@ -1784,11 +1811,11 @@ function frame(time) {
 
           survival.updateMoon(dt, isRunning());
 
-          const nearest = moonSurface.scraps.getNearestUncollected(
-            moonSurface.x,
-            moonSurface.y
-          );
-
+          const nearest = getNearestDetectorTarget();
+            survival.updateDetector(
+              dt,
+              nearest ? nearest.distance : null
+            );
           survival.updateDetector(
             dt,
             nearest ? nearest.distance : null

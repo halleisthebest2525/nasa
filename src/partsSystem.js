@@ -27,7 +27,6 @@ const TYPE_NAMES = {
   computer: 'COMPUTER'
 };
 
-// Maps each part type to its exact assets.txt prefix.
 const IMAGE_NAMES = {
   engine: 'engine',
   fuelTank: 'fuel_tank',
@@ -126,6 +125,7 @@ export function attachPartsSystem(moonSurface) {
 
       accelerationMultiplier: ENGINE_SPEED[engineRank],
       maxSpeedMultiplier: ENGINE_SPEED[engineRank],
+
       fuelDrainMultiplier:
         ENGINE_DRAIN[engineRank] * ENERGY_EFFICIENCY[energyRank],
 
@@ -134,6 +134,29 @@ export function attachPartsSystem(moonSurface) {
       maxFuel: 100 + tankRank * 20,
       maxHull: 100 + hullRank * 20
     };
+  }
+
+  // Find the closest uncollected ship module.
+  function getNearestUncollected(x, y) {
+    let nearest = null;
+
+    for (const part of parts.items) {
+      if (part.collected) continue;
+
+      const distance = Math.hypot(
+        x - part.x,
+        y - part.y
+      );
+
+      if (!nearest || distance < nearest.distance) {
+        nearest = {
+          ...part,
+          distance
+        };
+      }
+    }
+
+    return nearest;
   }
 
   function installPart(part) {
@@ -174,11 +197,10 @@ export function attachPartsSystem(moonSurface) {
     }));
   }
 
-  // Keep the existing scrap update unchanged.
   const originalUpdate = moonSurface.update.bind(moonSurface);
 
-  moonSurface.update = function(dt, canRun = true) {
-  originalUpdate(dt, canRun);
+  moonSurface.update = function(dt) {
+    originalUpdate(dt);
 
     if (moonSurface.scraps.inventoryOpen) return;
 
@@ -198,11 +220,17 @@ export function attachPartsSystem(moonSurface) {
     parts.pickupTimer = Math.max(0, parts.pickupTimer - dt);
   };
 
-  // Draw actual part images instead of placeholder hexagons.
+  // Draw actual module images.
   const originalDrawWorld =
     moonSurface.scraps.drawWorld.bind(moonSurface.scraps);
 
-  moonSurface.scraps.drawWorld = function(ctx, cameraX, cameraY, width, height) {
+  moonSurface.scraps.drawWorld = function(
+    ctx,
+    cameraX,
+    cameraY,
+    width,
+    height
+  ) {
     originalDrawWorld(ctx, cameraX, cameraY, width, height);
 
     for (const part of parts.items) {
@@ -224,7 +252,6 @@ export function attachPartsSystem(moonSurface) {
       ctx.save();
       ctx.translate(x, y);
 
-      // Rarity glow.
       ctx.shadowColor = color;
       ctx.shadowBlur = 14;
 
@@ -234,7 +261,6 @@ export function attachPartsSystem(moonSurface) {
         image.naturalWidth > 0 &&
         image.naturalHeight > 0
       ) {
-        // Preserve the image's original proportions.
         const maxWidth = 48;
         const maxHeight = 48;
 
@@ -254,7 +280,6 @@ export function attachPartsSystem(moonSurface) {
           drawHeight
         );
       } else {
-        // Fallback if an image fails to load.
         ctx.fillStyle = '#171b19';
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
@@ -291,7 +316,6 @@ export function attachPartsSystem(moonSurface) {
     }
   };
 
-  // Keep the existing scrap pickup message.
   const originalPickupMessage =
     moonSurface.scraps.drawPickupMessage.bind(moonSurface.scraps);
 
@@ -318,6 +342,7 @@ export function attachPartsSystem(moonSurface) {
   return {
     getStats,
     getParts: () => parts,
-    getInstalled: () => parts.installed
+    getInstalled: () => parts.installed,
+    getNearestUncollected
   };
 }

@@ -160,8 +160,9 @@ export class MoonSurface {
       dx /= length;
       dy /= length;
 
-      const speed = WALK_SPEED *
-        (this.keys.has('shift') ? RUN_MULTIPLIER : 1);
+      
+      const running = this.keys.has('shift') && canRun;
+const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1);
 
       this.x += dx * speed * dt;
       this.y += dy * speed * dt;

@@ -1,22 +1,594 @@
-
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#080a0c">
-  <title>Starfall — Deep Space</title>
+  <meta name="theme-color" content="#07090b">
+  <title>PROJECT: NASARETH</title>
   <link rel="stylesheet" href="./styles/main.css">
+  <style>
+    :root {
+      --menu-bg: #07090b;
+      --menu-panel: rgba(12, 16, 19, .88);
+      --menu-line: rgba(186, 199, 193, .16);
+      --menu-text: #e5e8e2;
+      --menu-muted: #89928e;
+      --menu-accent: #c3a77a;
+      --menu-mono: "Share Tech Mono", "Courier New", monospace;
+      --menu-display: "Barlow Condensed", Impact, sans-serif;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--menu-bg);
+    }
+
+    body { color: var(--menu-text); }
+
+    #game {
+      position: fixed;
+      inset: 0;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity .7s ease;
+    }
+
+    #game.game-active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    #space {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    #main-menu {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: clamp(22px, 4vw, 58px) clamp(24px, 6vw, 96px) 26px;
+      background:
+        radial-gradient(ellipse at 72% 47%, rgba(85,103,107,.17), transparent 36%),
+        radial-gradient(ellipse at 18% 86%, rgba(117,91,63,.10), transparent 32%),
+        linear-gradient(115deg,#07090b 0%,#0b1013 54%,#080a0c 100%);
+      transition: opacity .65s ease, visibility .65s ease;
+      font-family: var(--menu-mono);
+    }
+
+    #main-menu::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: .24;
+      background-image:
+        linear-gradient(rgba(188,202,196,.055) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(188,202,196,.055) 1px,transparent 1px);
+      background-size: 74px 74px;
+      mask-image: linear-gradient(90deg,black,transparent 90%);
+    }
+
+    #main-menu::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: .16;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent 0 3px,
+        rgba(255,255,255,.035) 4px
+      );
+    }
+
+    #main-menu.menu-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .menu-header, .menu-footer, .menu-content {
+      position: relative;
+      z-index: 2;
+    }
+
+    .menu-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--menu-line);
+      padding-bottom: 18px;
+    }
+
+    .menu-brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      letter-spacing: 3px;
+      font-size: 12px;
+    }
+
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(195,167,122,.65);
+      color: var(--menu-accent);
+      font-size: 17px;
+      transform: rotate(45deg);
+    }
+
+    .brand-mark span { transform: rotate(-45deg); }
+
+    .menu-status {
+      color: #9aa59f;
+      font-size: 10px;
+      letter-spacing: 2px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .status-light {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #9fb49a;
+      box-shadow: 0 0 12px #9fb49a;
+    }
+
+    .menu-content {
+      display: grid;
+      grid-template-columns: minmax(300px, .82fr) minmax(300px, 1.18fr);
+      align-items: center;
+      gap: 4vw;
+      width: min(1320px, 100%);
+      margin: auto;
+    }
+
+    .menu-copy {
+      max-width: 590px;
+      padding: 40px 0;
+    }
+
+    .menu-kicker {
+      color: var(--menu-accent);
+      font-size: 10px;
+      letter-spacing: 4px;
+      margin-bottom: 22px;
+    }
+
+    .menu-title {
+      font-family: var(--menu-display);
+      font-size: clamp(64px, 9.2vw, 142px);
+      line-height: .78;
+      font-weight: 800;
+      letter-spacing: -2px;
+      margin: 0;
+      text-transform: uppercase;
+    }
+
+    .menu-title span {
+      display: block;
+      color: #aeb8b2;
+      font-size: .48em;
+      letter-spacing: .25em;
+      font-weight: 600;
+      margin-top: 17px;
+    }
+
+    .menu-description {
+      max-width: 430px;
+      color: #98a19d;
+      font-size: 12px;
+      line-height: 1.9;
+      margin: 31px 0 32px;
+    }
+
+    .menu-divider {
+      width: 58px;
+      height: 1px;
+      background: var(--menu-accent);
+      margin: 26px 0;
+    }
+
+    .menu-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      width: min(330px, 100%);
+    }
+
+    .button {
+      appearance: none;
+      border: 1px solid transparent;
+      border-radius: 0;
+      cursor: pointer;
+      font: inherit;
+      letter-spacing: 2px;
+      transition:
+        background .2s,
+        border-color .2s,
+        color .2s,
+        transform .2s;
+    }
+
+    .button:focus-visible {
+      outline: 2px solid #e2c99d;
+      outline-offset: 4px;
+    }
+
+    .button-primary {
+      width: 100%;
+      padding: 17px 20px;
+      text-align: left;
+      color: #101310;
+      background: var(--menu-accent);
+      font-weight: bold;
+      font-size: 11px;
+    }
+
+    .button-primary:hover {
+      background: #dfc49a;
+      transform: translateX(4px);
+    }
+
+    .button-secondary {
+      width: 100%;
+      padding: 15px 20px;
+      text-align: left;
+      color: #d4dbd5;
+      background: rgba(20,26,28,.72);
+      border-color: rgba(176,190,183,.23);
+      font-size: 11px;
+    }
+
+    .button-secondary:hover {
+      border-color: rgba(195,167,122,.8);
+      color: white;
+      background: rgba(34,42,42,.85);
+    }
+
+    .button-quiet {
+      padding: 12px 14px;
+      color: #a0aaa4;
+      background: transparent;
+      border-color: rgba(176,190,183,.15);
+      font-size: 10px;
+    }
+
+    .button-quiet:hover {
+      color: #f1c9b0;
+      border-color: #a36c5c;
+    }
+
+    .ship-stage {
+      position: relative;
+      min-height: 450px;
+      display: grid;
+      place-items: center;
+      isolation: isolate;
+    }
+
+    .ship-stage::before {
+      content: "";
+      position: absolute;
+      width: min(39vw, 520px);
+      aspect-ratio: 1;
+      border: 1px solid rgba(173,190,184,.15);
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 42px rgba(173,190,184,.025),
+        0 0 0 110px rgba(173,190,184,.018),
+        inset 0 0 90px rgba(173,190,184,.04);
+    }
+
+    .ship-stage::after {
+      content: "";
+      position: absolute;
+      width: min(48vw, 650px);
+      height: 1px;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(195,167,122,.32),
+        transparent
+      );
+      transform: rotate(-24deg);
+    }
+
+    .ship-art {
+      position: relative;
+      width: min(75%, 590px);
+      filter: drop-shadow(0 22px 35px rgba(0,0,0,.65));
+      animation: ship-drift 8s ease-in-out infinite;
+    }
+
+    @keyframes ship-drift {
+      0%, 100% { transform: translateY(5px) rotate(-2deg); }
+      50% { transform: translateY(-8px) rotate(-1deg); }
+    }
+
+    .orbit-label {
+      position: absolute;
+      color: #78847f;
+      font-size: 9px;
+      letter-spacing: 2px;
+    }
+
+    .orbit-label.top { top: 13%; right: 2%; }
+    .orbit-label.bottom { bottom: 12%; left: 3%; }
+
+    .crosshair {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border: 1px solid rgba(195,167,122,.5);
+      transform: rotate(45deg);
+    }
+
+    .crosshair.one { top: 22%; left: 10%; }
+    .crosshair.two { bottom: 23%; right: 8%; width: 9px; height: 9px; }
+
+    .menu-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      border-top: 1px solid var(--menu-line);
+      padding-top: 15px;
+      color: #68736e;
+      font-size: 9px;
+      letter-spacing: 1.7px;
+    }
+
+    .menu-footer span:last-child { text-align: right; }
+
+    .subview {
+      width: 100%;
+      max-width: 680px;
+      margin: auto;
+      padding: 38px 0;
+    }
+
+    .subview[hidden] { display: none !important; }
+
+    .subview-heading {
+      font-family: var(--menu-display);
+      font-size: clamp(42px, 6vw, 68px);
+      margin: 0 0 8px;
+      letter-spacing: 2px;
+    }
+
+    .subview-subtitle {
+      color: var(--menu-muted);
+      font-size: 11px;
+      letter-spacing: 1px;
+      margin: 0 0 28px;
+    }
+
+    .subview-actions {
+      display: grid;
+      gap: 12px;
+      max-width: 430px;
+    }
+
+    .back-button {
+      background: none;
+      border: 0;
+      color: #9ca8a1;
+      font: 11px var(--menu-mono);
+      letter-spacing: 2px;
+      cursor: pointer;
+      padding: 12px 0;
+      margin-top: 22px;
+    }
+
+    .back-button:hover { color: var(--menu-accent); }
+
+    .save-list {
+      display: grid;
+      gap: 12px;
+      max-height: min(54vh, 520px);
+      overflow: auto;
+      padding-right: 8px;
+    }
+
+    .save-card {
+      border: 1px solid rgba(176,190,183,.2);
+      background: rgba(10,14,16,.8);
+      padding: 17px;
+    }
+
+    .save-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .save-index {
+      color: var(--menu-accent);
+      font-size: 9px;
+      letter-spacing: 2px;
+    }
+
+    .save-card h3 {
+      margin: 7px 0 0;
+      font: 600 24px var(--menu-display);
+      letter-spacing: 1px;
+    }
+
+    .save-location {
+      color: #9caaa2;
+      border: 1px solid rgba(176,190,183,.18);
+      padding: 6px 8px;
+      font-size: 8px;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+
+    .save-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px 20px;
+      margin: 14px 0;
+      color: #77837d;
+      font-size: 9px;
+      letter-spacing: 1px;
+    }
+
+    .save-actions { display: flex; gap: 9px; }
+
+    .save-actions .button-primary {
+      width: auto;
+      flex: 1;
+      padding: 12px 14px;
+      font-size: 9px;
+    }
+
+    .empty-saves {
+      border: 1px dashed rgba(176,190,183,.2);
+      text-align: center;
+      padding: 44px 18px;
+      color: #7e8983;
+    }
+
+    .empty-mark {
+      display: block;
+      color: var(--menu-accent);
+      font-size: 30px;
+      margin-bottom: 12px;
+    }
+
+    .empty-saves strong {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: #bdc5bf;
+    }
+
+    .empty-saves p { font-size: 10px; }
+
+    #pause-menu {
+      position: fixed;
+      inset: 0;
+      z-index: 250;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(3,5,6,.82);
+      backdrop-filter: blur(8px);
+      font-family: var(--menu-mono);
+    }
+
+    #pause-menu.pause-visible { display: flex; }
+
+    .pause-panel {
+      width: min(470px, 100%);
+      border: 1px solid rgba(195,167,122,.5);
+      background: linear-gradient(145deg,#151b1c,#090d0f);
+      padding: 30px;
+      box-shadow: 0 25px 100px #000;
+    }
+
+    .pause-kicker {
+      color: var(--menu-accent);
+      font-size: 9px;
+      letter-spacing: 3px;
+    }
+
+    .pause-title {
+      font: 700 42px var(--menu-display);
+      margin: 7px 0 23px;
+      letter-spacing: 2px;
+    }
+
+    .save-label {
+      display: block;
+      color: #8d9992;
+      font-size: 9px;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+
+    #save-name {
+      box-sizing: border-box;
+      width: 100%;
+      background: #090e10;
+      border: 1px solid rgba(176,190,183,.25);
+      color: #e5e8e2;
+      padding: 13px;
+      font: 12px var(--menu-mono);
+      outline: none;
+    }
+
+    #save-name:focus { border-color: var(--menu-accent); }
+
+    #save-status {
+      min-height: 15px;
+      color: #b8c59e;
+      font-size: 9px;
+      letter-spacing: 1px;
+      margin: 10px 0 15px;
+    }
+
+    .pause-actions { display: grid; gap: 9px; }
+
+    #launch-error {
+      color: #db8977;
+      font-size: 10px;
+      margin-top: 12px;
+      min-height: 14px;
+      letter-spacing: 1px;
+    }
+
+    @media (max-width: 800px) {
+      #main-menu { padding: 22px 24px 18px; }
+      .menu-content {
+        grid-template-columns: 1fr;
+        gap: 0;
+        align-content: center;
+      }
+      .menu-copy { padding: 26px 0 10px; }
+      .ship-stage {
+        min-height: 180px;
+        grid-row: 1;
+        opacity: .65;
+      }
+      .ship-stage::before { width: 220px; }
+      .ship-art { width: 240px; }
+      .orbit-label, .crosshair { display: none; }
+      .menu-title { font-size: clamp(60px,14vw,100px); }
+      .menu-description { margin: 18px 0 22px; }
+      .menu-footer { font-size: 8px; }
+    }
+
+    @media (max-height: 700px) {
+      .ship-stage { min-height: 300px; }
+      .menu-copy { padding: 18px 0; }
+      .menu-description { margin: 20px 0; }
+      .menu-title { font-size: clamp(60px,8vw,110px); }
+    }
+  </style>
 </head>
 <body>
   <main id="game">
     <canvas id="space"></canvas>
 
     <header class="topbar">
-      <div class="brand">
-        
-      </div>
-
+      <div class="brand"></div>
       <div class="status">
         <span class="status-dot"></span>
         SYSTEM ONLINE
@@ -25,53 +597,31 @@
 
     <section class="hud-left panel">
       <div class="eyebrow">SHIP STATUS</div>
-
-      <div class="ship-name">
-        WAYFARER <span>MK. I</span>
-      </div>
-
+      <div class="ship-name">WAYFARER <span>MK. I</span></div>
       <div class="stat-row">
         <span>ENGINE RPM</span>
         <strong id="speed">0</strong>
         <small>RPM</small>
       </div>
-
-      <div class="meter">
-        <i id="speed-meter"></i>
-      </div>
-
+      <div class="meter"><i id="speed-meter"></i></div>
       <div class="stat-row">
         <span>HULL</span>
         <strong id="hull-value">100</strong>
         <small>%</small>
       </div>
-
-      <div class="meter hull">
-        <i id="hull-meter"></i>
-      </div>
+      <div class="meter hull"><i id="hull-meter"></i></div>
     </section>
 
     <section class="hud-right panel">
       <div class="eyebrow">ENVIRONMENT</div>
-
-      <div class="environment-title">
-        DEEP SPACE
-      </div>
-
+      <div class="environment-title">DEEP SPACE</div>
       <div class="environment-info">
         <span class="mission-dot"></span>
-        <div>
-          <b>SECTOR 01</b>
-          <small>Uncharted region</small>
-        </div>
+        <div><b>SECTOR 01</b><small>Uncharted region</small></div>
       </div>
-
       <div class="environment-info">
         <span class="warning-dot"></span>
-        <div>
-          <b>ASTEROID FIELD</b>
-          <small>Debris detected</small>
-        </div>
+        <div><b>ASTEROID FIELD</b><small>Debris detected</small></div>
       </div>
     </section>
 
@@ -83,13 +633,148 @@
         <span><kbd>M</kbd> MAP</span>
         <span><kbd>E</kbd> EXIT / INTERACT</span>
       </div>
-
-      <div class="coords" id="coords">
-        SECTOR 01 · X 0000 · Y 0000
-      </div>
+      <div class="coords" id="coords">SECTOR 01 · X 0000 · Y 0000</div>
     </footer>
   </main>
 
-  <script type="module" src="./src/main.js"></script>
+  <section id="main-menu">
+    <header class="menu-header">
+      <div class="menu-brand">
+        <div class="brand-mark"><span>✦</span></div>
+        <div>NASARETH <span style="color:#6f7b75">/</span> DEEP SPACE PROGRAM</div>
+      </div>
+      <div class="menu-status">
+        <span class="status-light"></span>
+        FLIGHT SYSTEMS STANDBY
+      </div>
+    </header>
+
+    <div class="menu-content">
+      <div class="menu-copy">
+        <section class="subview" id="view-home">
+          <div class="menu-kicker">INDEPENDENT DEEP SPACE INITIATIVE · 2189</div>
+          <h1 class="menu-title">PROJECT<span>NASARETH</span></h1>
+          <div class="menu-divider"></div>
+          <p class="menu-description">
+            Beyond the mapped frontier, every signal has a source.
+            Every resource has a cost. And every expedition leaves a record.
+          </p>
+          <div class="menu-actions">
+            <button class="button button-primary" id="singleplayer-button">
+              SINGLEPLAYER <span style="float:right">↗</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="subview" id="view-singleplayer" hidden>
+          <div class="menu-kicker">FLIGHT OPERATIONS / SOLO MODE</div>
+          <h2 class="subview-heading">SINGLEPLAYER</h2>
+          <p class="subview-subtitle">ONE PILOT. ONE SHIP. NO GUARANTEE OF RETURN.</p>
+          <div class="subview-actions">
+            <button class="button button-primary" id="new-game">
+              NEW GAME <span style="float:right">↗</span>
+            </button>
+            <button class="button button-secondary" id="load-game">LOAD GAME</button>
+          </div>
+          <div id="launch-error"></div>
+          <button class="back-button" id="back-home">← BACK</button>
+        </section>
+
+        <section class="subview" id="view-saves" hidden>
+          <div class="menu-kicker">FLIGHT OPERATIONS / ARCHIVE</div>
+          <h2 class="subview-heading">SAVED GAMES</h2>
+          <p class="subview-subtitle">
+            EXPEDITION RECORDS STORED LOCALLY ON THIS DEVICE.
+          </p>
+          <div class="save-list" id="save-list"></div>
+          <button class="back-button" id="back-singleplayer">← BACK</button>
+        </section>
+      </div>
+
+      <div class="ship-stage" aria-hidden="true">
+        <span class="orbit-label top">WAYFARER MK.I · LONG-RANGE EXPLORER</span>
+        <span class="orbit-label bottom">SECTOR 01 / LUNAR APPROACH</span>
+        <span class="crosshair one"></span>
+        <span class="crosshair two"></span>
+
+        <svg class="ship-art" viewBox="0 0 620 420" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="hull" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#b7c0b9"/>
+              <stop offset=".35" stop-color="#596763"/>
+              <stop offset=".72" stop-color="#252f31"/>
+              <stop offset="1" stop-color="#101719"/>
+            </linearGradient>
+            <linearGradient id="wing" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#8e9a91"/>
+              <stop offset="1" stop-color="#20292b"/>
+            </linearGradient>
+            <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#a4c4c5"/>
+              <stop offset=".45" stop-color="#36545b"/>
+              <stop offset="1" stop-color="#14252b"/>
+            </linearGradient>
+          </defs>
+
+          <g stroke="#c2c9bf" stroke-opacity=".48" stroke-width="2" stroke-linejoin="round">
+            <path d="M302 30 L350 112 L530 260 L465 277 L355 222 L331 345 L289 389 L265 345 L242 222 L132 277 L67 260 L247 112 Z" fill="url(#hull)"/>
+            <path d="M247 112 L150 250 L222 229 L265 170 Z" fill="url(#wing)"/>
+            <path d="M355 112 L470 250 L398 229 L355 170 Z" fill="url(#wing)"/>
+            <path d="M302 30 L331 345 L289 389 L265 345 L273 113 Z" fill="#7e8c84" fill-opacity=".48"/>
+            <path d="M302 82 L336 143 L267 143 Z" fill="url(#glass)" stroke="#b6d0c9"/>
+            <path d="M280 162 L324 162 L339 211 L266 211 Z" fill="#1a3036" stroke="#819a97"/>
+            <path d="M266 225 L338 225 L326 270 L278 270 Z" fill="#303d3c"/>
+            <path d="M273 290 L331 290 L320 337 L284 337 Z" fill="#151e20"/>
+            <path d="M252 132 L199 225 L245 207" fill="none" stroke="#c1a77e"/>
+            <path d="M352 132 L405 225 L359 207" fill="none" stroke="#c1a77e"/>
+            <path d="M269 345 L302 370 L335 345" fill="none" stroke="#c1a77e"/>
+            <path d="M132 277 L178 264 L221 284 L164 291 Z" fill="#3d4b49"/>
+            <path d="M472 277 L426 264 L383 284 L440 291 Z" fill="#3d4b49"/>
+          </g>
+
+          <g fill="#d2a36e">
+            <rect x="290" y="347" width="8" height="25"/>
+            <rect x="306" y="347" width="8" height="25"/>
+          </g>
+
+          <g fill="#91c3c7" opacity=".72">
+            <path d="M290 371 L310 371 L300 414 Z"/>
+            <path d="M281 370 L291 370 L286 399 Z"/>
+            <path d="M309 370 L319 370 L314 399 Z"/>
+          </g>
+
+          <path d="M300 24 L302 5 L304 24" fill="none" stroke="#c5a77a" stroke-width="2"/>
+        </svg>
+      </div>
+    </div>
+
+    <footer class="menu-footer">
+      <span>PROJECT NASARETH <span style="color:#a78d68">/</span> BUILD 0.1</span>
+      <span>LOCAL FLIGHT RECORDS ENABLED</span>
+      <span>© 2189 DEEP SPACE PROGRAM</span>
+    </footer>
+  </section>
+
+  <section id="pause-menu" aria-label="Paused">
+    <div class="pause-panel">
+      <div class="pause-kicker">PROJECT NASARETH / FLIGHT PAUSED</div>
+      <h2 class="pause-title">MISSION CONTROL</h2>
+
+      <label class="save-label" for="save-name">EXPEDITION SAVE NAME</label>
+      <input id="save-name" maxlength="28" value="Expedition" autocomplete="off">
+
+      <div id="save-status"></div>
+
+      <div class="pause-actions">
+        <button class="button button-primary" id="pause-save">SAVE GAME</button>
+        <button class="button button-secondary" id="pause-resume">RESUME EXPEDITION</button>
+        <button class="button button-quiet" id="pause-main-menu">
+          SAVE & RETURN TO MAIN MENU
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <script type="module" src="./src/menu.js"></script>
 </body>
 </html>

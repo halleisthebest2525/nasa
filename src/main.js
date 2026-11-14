@@ -7,6 +7,7 @@ import { updateHud } from './hud.js';
 import { MoonSurface } from './moonSurface.js';
 import { loadAssets } from './assets.js';
 import { Survival } from './survival.js';
+import { readSaves, writeSave, removeSave, applySnapshot } from './saveSystem.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -28,6 +29,8 @@ let hull = 100;
 let gameOver = false;
 let gameMode = 'driving';
 let minimapOpen = false;
+let paused = false;
+let autosaveAccumulator = 0;
 
 let sleepConfirmationOpen = false;
 let sleeping = false;
@@ -1397,6 +1400,186 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
+// SAVE SYSTEM
+function createSnapshot() {
+  const saveOnFoot = {};
+
+  for (const [key, value] of Object.entries(onFoot)) {
+    if (
+      key === 'assets' ||
+      key === 'keys' ||
+      typeof value === 'function' ||
+      value instanceof Set ||
+      value instanceof Map
+    ) continue;
+
+    if (
+      value === null ||
+      ['string', 'number', 'boolean'].includes(typeof value) ||
+      Array.isArray(value)
+    ) {
+      saveOnFoot[key] = structuredClone(value);
+    }
+  }
+
+  return {
+    version: 1,
+    game: 'Project: Nasareth',
+    gameMode,
+    gameMinutes,
+    hull,
+    landedOnMoon,
+
+    ship: {
+      x: ship.x,
+      y: ship.y,
+      vx: ship.vx,
+      vy: ship.vy,
+      angle: ship.angle,
+      boosting: ship.boosting
+    },
+
+    survival: {
+      fuel: survival.fuel,
+      shipOxygen: survival.shipOxygen,
+      oxygen: survival.oxygen,
+      health: survival.health,
+      stamina: survival.stamina,
+      detectorOn: survival.detectorOn,
+      detectorFlash: survival.detectorFlash,
+      detectorLit: survival.detectorLit
+    },
+
+    moon: {
+      x: moonSurface.x,
+      y: moonSurface.y,
+      angle: moonSurface.angle,
+      mapOpen: moonSurface.mapOpen,
+      shipX: moonSurface.shipX,
+      shipY: moonSurface.shipY,
+
+      scraps: {
+        items: structuredClone(moonSurface.scraps.items),
+        inventory: structuredClone(moonSurface.scraps.inventory),
+        credits: moonSurface.scraps.credits
+      }
+    },
+
+    onFoot: saveOnFoot,
+
+    world: {
+      asteroids: structuredClone(world.asteroids)
+    }
+  };
+}
+
+function saveCurrentGame(name = 'Expedition') {
+  const snapshot = createSnapshot();
+  const saved = writeSave(name, snapshot);
+
+  window.dispatchEvent(new CustomEvent('nasareth:saves-updated'));
+
+  return saved;
+}
+
+function loadPendingSave() {
+  const pending = localStorage.getItem('nasareth.pending-load');
+
+  if (!pending) return;
+
+  try {
+    const save = JSON.parse(pending);
+
+    applySnapshot(save, {
+      ship,
+      survival,
+      moonSurface,
+      onFoot,
+      world
+    });
+
+    gameMode = ['driving', 'walking', 'moon'].includes(save.gameMode)
+      ? save.gameMode
+      : 'driving';
+
+    gameMinutes = Number.isFinite(save.gameMinutes)
+      ? save.gameMinutes
+      : 480;
+
+    hull = Number.isFinite(save.hull)
+      ? save.hull
+      : 100;
+
+    landedOnMoon = Boolean(save.landedOnMoon);
+
+    if (gameMode === 'walking') onFoot.clearKeys();
+    if (gameMode === 'moon') moonSurface.clearKeys();
+
+    updateClockDisplay();
+    updateHull();
+
+    localStorage.removeItem('nasareth.pending-load');
+  } catch (error) {
+    console.error('Could not load save:', error);
+    localStorage.removeItem('nasareth.pending-load');
+  }
+}
+
+loadPendingSave();
+
+window.NasarethGame = {
+  save: saveCurrentGame,
+  saves: readSaves,
+  deleteSave: removeSave,
+
+  pause() {
+    if (
+      gameOver ||
+      computerOpen ||
+      sleeping ||
+      sleepConfirmationOpen ||
+      launchConfirmationOpen ||
+      moonSurface.scraps.inventoryOpen
+    ) return false;
+
+    paused = true;
+    return true;
+  },
+
+  resume() {
+    paused = false;
+    previous = 0;
+  },
+
+  isPaused() {
+    return paused;
+  }
+};
+
+window.dispatchEvent(new CustomEvent('nasareth:game-ready'));
+
+// PAUSE MENU SHORTCUT
+window.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || event.repeat) return;
+
+  if (
+    gameOver ||
+    computerOpen ||
+    sleeping ||
+    sleepConfirmationOpen ||
+    launchConfirmationOpen ||
+    moonSurface.scraps.inventoryOpen
+  ) return;
+
+  event.preventDefault();
+
+  paused = !paused;
+
+  window.dispatchEvent(new CustomEvent(
+    paused ? 'nasareth:pause' : 'nasareth:resume'
+  ));
+});
+
 // MAIN LOOP
 function frame(time) {
   const dt = Math.min(
@@ -1406,7 +1589,7 @@ function frame(time) {
 
   previous = time;
 
-  if (!gameOver) {
+  if (!gameOver && !paused) {
     if (sleeping) {
       sleepTimer -= dt;
 
@@ -1476,6 +1659,15 @@ function frame(time) {
           }
         }
       }
+    }
+  }
+
+  if (!paused && !gameOver) {
+    autosaveAccumulator += dt;
+
+    if (autosaveAccumulator >= 60) {
+      autosaveAccumulator = 0;
+      saveCurrentGame('Autosave');
     }
   }
 

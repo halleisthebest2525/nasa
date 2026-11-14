@@ -1,3 +1,4 @@
+
 import { readSaves, removeSave } from './saveSystem.js';
 
 const menu = document.querySelector('#main-menu');
@@ -11,6 +12,94 @@ const views = {
 };
 
 let gameStarted = false;
+
+// ==========================================
+// MUSIC
+// ==========================================
+
+let menuMusic = null;
+let musicRequested = false;
+
+async function loadMusic() {
+  try {
+    const response = await fetch('./music.txt');
+
+    if (!response.ok) {
+      throw new Error('Could not load music.txt');
+    }
+
+    const text = await response.text();
+
+    const entries = {};
+
+    text.split(/\r?\n/).forEach(line => {
+      const trimmed = line.trim();
+
+      if (!trimmed || trimmed.startsWith('#')) return;
+
+      const separator = trimmed.indexOf('=');
+
+      if (separator === -1) return;
+
+      const name = trimmed.slice(0, separator).trim();
+      const path = trimmed.slice(separator + 1).trim();
+
+      if (name && path) {
+        entries[name] = path;
+      }
+    });
+
+    if (!entries.mainmenu) {
+      throw new Error('mainmenu music path is missing');
+    }
+
+    menuMusic = new Audio(entries.mainmenu);
+    menuMusic.loop = true;
+    menuMusic.volume = 0.35;
+    menuMusic.preload = 'auto';
+
+    menuMusic.addEventListener('error', () => {
+      console.error('Menu music failed to load:', entries.mainmenu);
+    });
+
+    if (musicRequested) {
+      playMenuMusic();
+    }
+  } catch (error) {
+    console.error('Music system:', error);
+  }
+}
+
+function playMenuMusic() {
+  if (!menuMusic || gameStarted) return;
+
+  const playback = menuMusic.play();
+
+  if (playback) {
+    playback.catch(error => {
+      console.warn('Menu music playback was blocked:', error);
+    });
+  }
+}
+
+// Browsers require user interaction before audio can play.
+document.addEventListener('click', () => {
+  musicRequested = true;
+  playMenuMusic();
+});
+
+document.addEventListener('keydown', () => {
+  musicRequested = true;
+  playMenuMusic();
+});
+
+loadMusic();
+
+// ==========================================
+// MENU
+// ==========================================
+
+
 
 function showView(name) {
   for (const [key, view] of Object.entries(views)) {
@@ -154,6 +243,12 @@ async function startGame(snapshot = null) {
   try {
     await import('./main.js');
 
+    // Stop menu music when the expedition begins.
+    if (menuMusic) {
+      menuMusic.pause();
+      menuMusic.currentTime = 0;
+    }
+
     game.classList.add('game-active');
     menu.classList.add('menu-hidden');
   } catch (error) {
@@ -167,6 +262,8 @@ async function startGame(snapshot = null) {
 
     document.querySelector('#launch-error').textContent =
       'SYSTEM START FAILED · CHECK THE CONSOLE FOR DETAILS';
+
+    playMenuMusic();
   }
 }
 

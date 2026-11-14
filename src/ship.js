@@ -13,7 +13,7 @@ export class Ship {
     this.boosting = false;
   }
 
-  update(dt, fuelAvailable = true) {
+  update(dt, fuelAvailable = true, modules = {}) {
     const c = CONFIG.ship;
 
     if (isDown('a', 'arrowleft')) this.angle -= c.turnSpeed * dt;
@@ -31,9 +31,15 @@ export class Ship {
 
     this.boosting = forward && isDown('shift');
 
+    const accelerationMultiplier =
+      modules.accelerationMultiplier || 1;
+
+    const speedMultiplier =
+      modules.maxSpeedMultiplier || 1;
+
     const power = this.boosting
-      ? c.acceleration * 1.65
-      : c.acceleration;
+      ? c.acceleration * 1.65 * accelerationMultiplier
+      : c.acceleration * accelerationMultiplier;
 
     if (forward) {
       this.vx += Math.cos(this.angle) * power * dt;
@@ -53,7 +59,10 @@ export class Ship {
       this.vy *= Math.pow(c.drag, dt * 60);
     }
 
-    const max = this.boosting ? c.boostSpeed : c.maxSpeed;
+    const max = (
+      this.boosting ? c.boostSpeed : c.maxSpeed
+    ) * speedMultiplier;
+
     const speed = Math.hypot(this.vx, this.vy);
 
     if (speed > max) {

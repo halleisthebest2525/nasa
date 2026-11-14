@@ -7,6 +7,7 @@ import { updateHud } from './hud.js';
 import { MoonSurface } from './moonSurface.js';
 import { loadAssets } from './assets.js';
 import { Survival } from './survival.js';
+import { attachPartsSystem } from './partsSystem.js';
 import { readSaves, writeSave, removeSave, applySnapshot } from './saveSystem.js';
 
 const canvas = document.querySelector('#space');
@@ -21,8 +22,13 @@ const onFoot = new OnFoot(assets);
 const moonSurface = new MoonSurface(assets);
 const survival = new Survival();
 
+const partsSystem = attachPartsSystem(moonSurface);
+let moduleStats = partsSystem.getStats();
+
+let hullMax = moduleStats.maxHull;
+
 let landedOnMoon = false;
-const shipSprite = assets.ship_space;
+let shipSprite = assets.ship_space;
 
 // GAME STATE
 let hull = 100;
@@ -480,12 +486,12 @@ function renderComputer() {
       ">
         <div class="computer-item">
           <span style="color:#d5b66b">SHIP FUEL</span>
-          <strong>${Math.round(survival.fuel)}%</strong>
-          <small>+20% FUEL · 30 CREDITS</small>
+          <strong>${Math.round(survival.fuel / survival.maxFuel * 100)}%</strong>
+          <small>+20 FUEL · 30 CREDITS</small>
           <button
             id="buy-fuel"
             class="computer-button"
-            ${survival.fuel >= 100 || credits < 30 ? 'disabled' : ''}
+            ${survival.fuel >= survival.maxFuel || credits < 30 ? 'disabled' : ''}
           >
             PURCHASE FUEL
           </button>
@@ -662,19 +668,24 @@ function renderComputer() {
 
 // HULL SYSTEM
 function updateHull() {
-  hullDisplay.textContent = `HULL INTEGRITY: ${hull}%`;
+  hullDisplay.textContent =
+    `HULL INTEGRITY: ${Math.round(hull)} / ${hullMax}`;
 
   hullDisplay.style.color =
-    hull <= 30 ? '#e45d4c' : '#d5d0c5';
+    hull <= hullMax * 0.3 ? '#e45d4c' : '#d5d0c5';
 
   hullDisplay.style.borderColor =
-    hull <= 30 ? '#a33d32' : '#555';
+    hull <= hullMax * 0.3 ? '#a33d32' : '#555';
 
   const hullValue = document.querySelector('#hull-value');
   const hullMeter = document.querySelector('#hull-meter');
 
-  if (hullValue) hullValue.textContent = hull;
-  if (hullMeter) hullMeter.style.width = `${hull}%`;
+  if (hullValue) hullValue.textContent = Math.round(hull);
+
+  if (hullMeter) {
+    hullMeter.style.width =
+      `${Math.max(0, Math.min(100, hull / hullMax * 100))}%`;
+  }
 
   if (hull <= 0 && !gameOver) {
     hull = 0;
@@ -689,7 +700,45 @@ function updateHull() {
   }
 }
 
-updateHull();
+// MODULE EFFECTS
+function updateModuleEffects(adjustHull = true) {
+  const previousMax = hullMax;
+
+  moduleStats = partsSystem.getStats();
+
+  ship.moduleStats = moduleStats;
+  survival.maxFuel = moduleStats.maxFuel;
+
+  hullMax = moduleStats.maxHull;
+
+  // Preserve current hull while adding the extra module capacity.
+  if (adjustHull && hullMax > previousMax) {
+    hull += hullMax - previousMax;
+  }
+
+  hull = Math.min(hull, hullMax);
+
+  const rarity = moduleStats.shipRarity;
+
+  const spaceSprite = assets[`ship_space_${rarity}`];
+  const moonSprite = assets[`ship_moon_${rarity}`];
+
+  if (rarity === 'base') {
+    shipSprite = assets.ship_space;
+    assets.ship_moon_current = assets.ship_moon;
+  } else {
+    shipSprite = spaceSprite || assets.ship_space;
+    assets.ship_moon_current = moonSprite || assets.ship_moon;
+  }
+
+  updateHull();
+}
+
+window.addEventListener('nasareth:modules-changed', () => {
+  updateModuleEffects();
+});
+
+updateModuleEffects(false);
 
 // LIFE SUPPORT GAME OVER
 function triggerLifeSupportFailure() {
@@ -1297,7 +1346,14 @@ function drawSurvivalEquipment(context) {
       context.fillText(`${Math.round(amount)}%`, x + 116, y + 18);
     }
 
-    drawTank(width - 148, tankY + 5, 'FUEL TANK', survival.fuel, '#d5b66b');
+    drawTank(
+      width - 148,
+      tankY + 5,
+      'FUEL TANK',
+      survival.fuel / survival.maxFuel * 100,
+      '#d5b66b'
+    );
+
     drawTank(width - 148, tankY + 55, 'OXYGEN TANK', survival.shipOxygen, '#77b9d4');
 
     context.restore();
@@ -1441,6 +1497,7 @@ function createSnapshot() {
 
     survival: {
       fuel: survival.fuel,
+      maxFuel: survival.maxFuel,
       shipOxygen: survival.shipOxygen,
       oxygen: survival.oxygen,
       health: survival.health,
@@ -1462,7 +1519,9 @@ function createSnapshot() {
         items: structuredClone(moonSurface.scraps.items),
         inventory: structuredClone(moonSurface.scraps.inventory),
         credits: moonSurface.scraps.credits
-      }
+      },
+
+      parts: structuredClone(partsSystem.getParts())
     },
 
     onFoot: saveOnFoot,
@@ -1498,6 +1557,15 @@ function loadPendingSave() {
       world
     });
 
+    // Keep the parts-system reference alive after loading a save.
+    if (save.moon?.parts) {
+      const liveParts = partsSystem.getParts();
+
+      Object.assign(liveParts, save.moon.parts);
+
+      moonSurface.parts = liveParts;
+    }
+
     gameMode = ['driving', 'walking', 'moon'].includes(save.gameMode)
       ? save.gameMode
       : 'driving';
@@ -1514,6 +1582,9 @@ function loadPendingSave() {
 
     if (gameMode === 'walking') onFoot.clearKeys();
     if (gameMode === 'moon') moonSurface.clearKeys();
+
+    // Recalculate module stats and sprites without adding hull twice.
+    updateModuleEffects(false);
 
     updateClockDisplay();
     updateHull();
@@ -1618,6 +1689,11 @@ function frame(time) {
         !computerOpen &&
         !moonSurface.scraps.inventoryOpen
       ) {
+        // Passive energy-module fuel generation outside driving mode.
+        if (gameMode !== 'driving') {
+          survival.updateFuel(dt, false, false, moduleStats);
+        }
+
         if (gameMode === 'driving') {
           const forwardPressed =
             heldKeys.has('w') || heldKeys.has('arrowup');
@@ -1631,10 +1707,16 @@ function frame(time) {
           survival.updateFuel(
             dt,
             engineActive,
-            boostRequested
+            boostRequested,
+            moduleStats
           );
 
-          ship.update(dt, survival.fuel > 0);
+          ship.update(
+            dt,
+            survival.fuel > 0,
+            moduleStats
+          );
+
           checkCollisions();
         } else if (gameMode === 'walking') {
           onFoot.update(dt);

@@ -441,7 +441,10 @@ export class MoonSurface {
     ctx.save();
     ctx.translate(x, y);
 
-    const sprite = this.assets.ship_moon || this.assets.ship_space;
+    const sprite =
+      this.assets.ship_moon_current ||
+      this.assets.ship_moon ||
+      this.assets.ship_space;
 
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
       const maxWidth = 145;

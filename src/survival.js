@@ -2,6 +2,8 @@
 export class Survival {
   constructor() {
     this.fuel = 100;
+    this.maxFuel = 100;
+
     this.shipOxygen = 100;
     this.oxygen = 100;
     this.health = 100;
@@ -12,11 +14,25 @@ export class Survival {
     this.detectorLit = false;
   }
 
-  updateFuel(dt, moving, boosting) {
+  updateFuel(dt, moving, boosting, modules = {}) {
+    this.maxFuel = modules.maxFuel || 100;
+
+    const passiveFuel = modules.passiveFuel || 0;
+
+    this.fuel = Math.min(
+      this.maxFuel,
+      this.fuel + passiveFuel * dt
+    );
+
     if (!moving || this.fuel <= 0) return;
 
     const drain = boosting ? 0.60 : 0.20;
-    this.fuel = Math.max(0, this.fuel - drain * dt);
+    const efficiency = modules.fuelDrainMultiplier || 1;
+
+    this.fuel = Math.max(
+      0,
+      this.fuel - drain * efficiency * dt
+    );
   }
 
   updateMoon(dt, running) {
@@ -49,16 +65,20 @@ export class Survival {
   }
 
   buyFuel(scraps) {
-    if (scraps.credits < 30 || this.fuel >= 100) return false;
+    if (scraps.credits < 30 || this.fuel >= this.maxFuel) return false;
+
     scraps.credits -= 30;
-    this.fuel = Math.min(100, this.fuel + 20);
+    this.fuel = Math.min(this.maxFuel, this.fuel + 20);
+
     return true;
   }
 
   buyOxygen(scraps) {
     if (scraps.credits < 30 || this.shipOxygen >= 100) return false;
+
     scraps.credits -= 30;
     this.shipOxygen = Math.min(100, this.shipOxygen + 20);
+
     return true;
   }
 

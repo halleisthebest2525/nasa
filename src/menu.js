@@ -1,5 +1,6 @@
 
 import { readSaves, removeSave } from './saveSystem.js';
+import './menuJupiter.js'; // animated Jupiter on the launch page
 
 const menu = document.querySelector('#main-menu');
 const game = document.querySelector('#game');

@@ -7,7 +7,7 @@
 import { CONFIG } from './config.js';
 
 const ROW_HEIGHT = 16;
-const ROWS = 7;
+const ROWS = 9;
 
 // game = {
 //   survival,              the Survival object
@@ -33,6 +33,7 @@ export function createStatsSection(game) {
 
   function playerRows() {
     const s = game.survival;
+    const progress = game.getProgress ? game.getProgress() : {};
 
     return [
       ['HEALTH', `${Math.round(s.health)}%`],
@@ -46,7 +47,9 @@ export function createStatsSection(game) {
           ? `LV ${s.flashlightLevel} · ${s.flashlightOn ? 'ON' : 'OFF'}`
           : 'NONE'
       ],
-      ['DETECTOR', s.detectorOn ? 'ON' : 'OFF']
+      ['DETECTOR', s.detectorOn ? 'ON' : 'OFF'],
+      ['CHEST DETECTOR', progress.chestDetector ? 'YES' : 'NO'],
+      ['MARS MAP', progress.marsMap ? 'ACQUIRED' : 'NONE']
     ];
   }
 

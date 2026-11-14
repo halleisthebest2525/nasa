@@ -121,6 +121,33 @@
       animation: planet-drift 18s ease-in-out infinite alternate;
     }
 
+    /* The old blue planet is replaced by the animated Jupiter below. */
+    #main-menu::after {
+      display: none;
+    }
+
+    /* Jupiter: same place and size as the old planet. */
+    #menu-jupiter {
+      position: absolute;
+      z-index: -1;
+      pointer-events: none;
+      width: clamp(280px, 42vw, 650px);
+      aspect-ratio: 1;
+      right: 5%;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    #menu-jupiter img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;      /* never stretched or cropped */
+      image-rendering: pixelated;
+      background: transparent;
+      user-select: none;
+    }
+
     @keyframes stars-drift {
       from { transform: translate3d(0, 0, 0); }
       to { transform: translate3d(-1.5%, 1%, 0); }
@@ -802,7 +829,8 @@
     }
 
     @media (max-width: 650px) {
-      #main-menu::after {
+      #main-menu::after,
+      #menu-jupiter {
         width: 75vw;
         right: -25vw;
         opacity: .55;
@@ -885,6 +913,11 @@
   </main>
 
   <section id="main-menu">
+    <!-- Animated Jupiter (32 frames, driven by src/menuJupiter.js) -->
+    <div id="menu-jupiter" aria-hidden="true">
+      <img src="./img/jupiter/jupiter_001.png" alt="" draggable="false">
+    </div>
+
     <header class="menu-header">
       <div class="menu-brand">
         <div class="brand-mark"><span>✦</span></div>

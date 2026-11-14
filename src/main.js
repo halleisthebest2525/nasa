@@ -15,6 +15,7 @@ import { runGaugeChallenge, isGaugeChallengeActive } from './gaugeChallenge.js';
 import { createStatsSection } from './inventoryStats.js';
 import { createShipConfigSection } from './shipConfigView.js';
 import { createLunarCrawlers } from './lunarCrawler.js';
+import { createChestQuest } from './chestQuest.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -30,6 +31,14 @@ const survival = new Survival();
 
 const partsSystem = attachPartsSystem(moonSurface);
 const spaceBackground = createSpaceBackground(assets);
+
+// Chest quest: all Moon modules -> chest detector -> chest -> Mars map.
+const chestQuest = createChestQuest({
+  partsSystem,
+  moonSurface,
+  showTransmission: (text, color) => showTransmission(text, color)
+});
+moonSurface.chestQuest = chestQuest;
 
 // Moon enemies (not saved: a fresh group appears on load and each new day).
 const crawlers = createLunarCrawlers(assets);
@@ -84,7 +93,8 @@ moonSurface.scraps.inventorySections.push(createShipConfigSection({
 moonSurface.scraps.inventorySections.push(createStatsSection({
   survival,
   getModuleStats: () => partsSystem.getStats(),
-  getHull: () => ({ hull, hullMax })
+  getHull: () => ({ hull, hullMax }),
+  getProgress: () => chestQuest.getState()
 }));
 let moduleStats = partsSystem.getStats();
 
@@ -915,6 +925,9 @@ function updateModuleEffects(adjustHull = true) {
 
 window.addEventListener('nasareth:modules-changed', () => {
   updateModuleEffects();
+
+  // All modules on the Moon collected -> chest detector.
+  chestQuest.checkModules();
 });
 
 updateModuleEffects(false);
@@ -1678,12 +1691,20 @@ function drawSurvivalEquipment(context) {
 
     context.save();
 
+    // Chest line only once the chest detector has been earned.
+    const hasChestDetector = chestQuest.getState().chestDetector;
+    const panelHeight = hasChestDetector ? 107 : 83;
+
+    // Shift right, next to the SHIP STATUS box (it used to hide the
+    // bottom of this panel).
+    context.translate(237, 0);
+
     // Detector panel.
     context.fillStyle = 'rgba(0,0,0,.88)';
-    context.fillRect(18, 18, 230, 83);
+    context.fillRect(18, 18, 230, panelHeight);
 
     context.strokeStyle = '#62665b';
-    context.strokeRect(18, 18, 230, 83);
+    context.strokeRect(18, 18, 230, panelHeight);
 
     // Title.
     context.fillStyle = '#c5c9b8';
@@ -1746,6 +1767,29 @@ function drawSurvivalEquipment(context) {
       53,
       85
     );
+
+    // CHEST SIGNAL (gold light).
+    if (hasChestDetector) {
+      const chestDistance = chestQuest.getChestDistance();
+      const chestLit = chestDistance !== null && survival.detectorLit;
+
+      context.beginPath();
+      context.arc(39, 105, 5, 0, Math.PI * 2);
+      context.fillStyle = chestLit ? '#f2d46f' : '#4d4120';
+      context.shadowColor = '#f2d46f';
+      context.shadowBlur = chestLit ? 12 : 0;
+      context.fill();
+      context.shadowBlur = 0;
+
+      context.fillStyle = '#e0c78e';
+      context.fillText(
+        chestDistance !== null
+          ? `CHEST: ${Math.round(chestDistance)}m`
+          : chestQuest.getState().marsMap ? 'CHEST: OPENED' : 'CHEST: NO SIGNAL',
+        53,
+        109
+      );
+    }
 
     context.restore();
   }
@@ -2055,7 +2099,10 @@ function createSnapshot() {
         credits: moonSurface.scraps.credits
       },
 
-      parts: structuredClone(partsSystem.getParts())
+      parts: structuredClone(partsSystem.getParts()),
+
+      // Chest detector / chest position / Mars map.
+      progress: chestQuest.save()
     },
 
     onFoot: saveOnFoot,
@@ -2100,6 +2147,13 @@ function loadPendingSave() {
 
       // Max 6 modules on the Moon, epic at most (fixes older saves).
       partsSystem.fixMoonItems();
+    }
+
+    // Chest quest progress (older saves have none).
+    chestQuest.load(save.moon?.progress);
+
+    if (save.moon) {
+      chestQuest.checkModules();
     }
 
     // Older saves could store 'sleeping'; load those inside the ship.
@@ -2320,11 +2374,15 @@ function frame(time) {
 
           survival.updateMoon(dt, isRunning());
 
+          // Open the quest chest when the player walks onto it.
+          chestQuest.update();
+
           const targets = getNearestDetectorTargets();
 
           const distances = [
             targets.scrap?.distance,
-            targets.module?.distance
+            targets.module?.distance,
+            chestQuest.getChestDistance()
           ].filter(Number.isFinite);
 
           const nearestDistance = distances.length

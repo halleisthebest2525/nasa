@@ -208,6 +208,11 @@ export class MoonSurface {
     this.scraps.drawWorld(ctx, cameraX, cameraY, width, height);
     this.drawShip(ctx, cameraX + this.shipX, cameraY + this.shipY);
 
+    // Quest chest (set by main.js).
+    if (this.chestQuest) {
+      this.chestQuest.draw(ctx, cameraX, cameraY, width, height);
+    }
+
     // Enemies (set by main.js). Drawn before the darkness, so they hide in it.
     if (this.enemies) {
       this.enemies.draw(ctx, cameraX, cameraY, width, height);

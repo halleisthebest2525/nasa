@@ -1,4 +1,5 @@
 import { CONFIG } from './config.js';
+import { BELT } from './world.js';
 // Space does NOT wrap around: the ship stops at the edge of the world.
 // (Wrapping used to show far-away objects on the opposite edge.)
 const wrap = value => value;
@@ -38,6 +39,8 @@ export function drawWorld(
   objectCtx.clearRect(0, 0, objectLayer.width, objectLayer.height);
   objectCtx.setTransform(ctx.getTransform());
   objectCtx.imageSmoothingEnabled = false;
+
+  drawJupiterBackdrop(ctx, world, ship, width, height);
 
   drawWorldObjects(objectCtx, world, ship, width, height, texturedBackground);
 
@@ -81,7 +84,7 @@ export function drawWorld(
   drawShip(ctx, ship, width, height, sprite);
 
   // Landing prompt near the Moon or Mars.
-  for (const body of [world.earth, world.moon, world.mars]) {
+  for (const body of [world.earth, world.moon, world.mars, world.europa, world.titan]) {
     if (!body) continue;
 
     if (Math.hypot(body.x - ship.x, body.y - ship.y) <= body.radius + 125) {
@@ -91,8 +94,15 @@ export function drawWorld(
 
   if (minimapOpen) {
     // Mars is only marked once the Mars star map has been found.
-    drawMinimap(ctx, ship, world.moon, width, height, world.earth,
-      world.marsDiscovered ? world.mars : null);
+    // Mars, Europa and Titan are only marked once their star map is found.
+    const found = world.discovered || {};
+    const markers = [];
+
+    if (found.mars) markers.push({ body: world.mars, color: '#d0704a', label: 'MARS' });
+    if (found.europa) markers.push({ body: world.europa, color: '#bfe0ee', label: 'EUROPA' });
+    if (found.titan) markers.push({ body: world.titan, color: '#e0b060', label: 'TITAN' });
+
+    drawMinimap(ctx, ship, world.moon, width, height, world.earth, markers);
   }
 }
 
@@ -172,6 +182,42 @@ function drawWorldObjects(ctx, world, ship, width, height, texturedBackground) {
       height / 2 + dy,
       asteroid
     );
+  }
+
+  // The Asteroid Belt (sprites, slowly spinning).
+  if (world.belt && world.sprites) {
+    const seconds = performance.now() / 1000;
+
+    for (const rock of world.belt) {
+      const dx = rock.x - ship.x;
+      const dy = rock.y - ship.y;
+
+      if (Math.abs(dx) > width / 2 + 100 || Math.abs(dy) > height / 2 + 100) continue;
+
+      const image = world.sprites.asteroids[rock.sprite];
+      if (!image) continue;
+
+      // Keep the sprite's shape: the longest side is rock.size.
+      const scale = rock.size / Math.max(image.width, image.height);
+
+      ctx.save();
+      ctx.translate(Math.floor(width / 2 + dx), Math.floor(height / 2 + dy));
+      ctx.rotate(rock.rotation + rock.spin * seconds);
+      ctx.drawImage(image, -image.width * scale / 2, -image.height * scale / 2, image.width * scale, image.height * scale);
+      ctx.restore();
+    }
+  }
+
+  // Europa and Titan (same planet drawing, their own colours).
+  for (const [body, look] of [[world.europa, EUROPA_LOOK], [world.titan, TITAN_LOOK]]) {
+    if (!body) continue;
+
+    const dx = body.x - ship.x;
+    const dy = body.y - ship.y;
+
+    if (Math.abs(dx) < width / 2 + body.radius && Math.abs(dy) < height / 2 + body.radius) {
+      drawMoon(ctx, width / 2 + dx, height / 2 + dy, body.radius, look);
+    }
   }
 
   // The Moon.
@@ -270,6 +316,60 @@ const MARS_LOOK = {
   label: '#f0c8b0',
   name: 'MARS'
 };
+
+const EUROPA_LOOK = {
+  glow: 'rgba(170, 215, 240, 0.5)',
+  base: '#b9ccd6',
+  light: '#f0f6f8',
+  mid: '#a9bfcb',
+  dark: '#566b7a',
+  crater: 'rgba(120, 80, 60, 0.35)',   // rusty cracks in the ice
+  rim: 'rgba(245, 250, 255, 0.3)',
+  edge: 'rgba(180, 225, 245, 0.5)',
+  label: '#e2f0f6',
+  name: 'EUROPA'
+};
+
+const TITAN_LOOK = {
+  glow: 'rgba(235, 170, 70, 0.5)',
+  base: '#c8963f',
+  light: '#f0cc80',
+  mid: '#c08a38',
+  dark: '#5a3d14',
+  crater: 'rgba(80, 50, 15, 0.4)',
+  rim: 'rgba(250, 225, 160, 0.25)',
+  edge: 'rgba(240, 185, 90, 0.5)',
+  label: '#f4dca8',
+  name: 'TITAN'
+};
+
+// JUPITER BACKDROP: a huge planet behind Europa. It moves slower than the
+// world (parallax), so it feels far away, and fades in as the ship gets close.
+const JUPITER_PARALLAX = 0.35;
+
+function drawJupiterBackdrop(ctx, world, ship, width, height) {
+  const image = world.sprites?.jupiter;
+  const jupiter = world.jupiter;
+
+  if (!image || !jupiter || !world.europa) return;
+
+  const distance = Math.hypot(world.europa.x - ship.x, world.europa.y - ship.y);
+  const alpha = Math.max(0, Math.min(1, (6500 - distance) / 2500));
+
+  if (alpha <= 0) return;
+
+  const x = width / 2 + (jupiter.x - ship.x) * JUPITER_PARALLAX;
+  const y = height / 2 + (jupiter.y - ship.y) * JUPITER_PARALLAX;
+  const size = jupiter.radius * 2;
+
+  if (x < -size || y < -size || x > width + size || y > height + size) return;
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.globalAlpha = alpha * 0.8;
+  ctx.drawImage(image, Math.floor(x - size / 2), Math.floor(y - size / 2), size, size);
+  ctx.restore();
+}
 
 function drawMoon(ctx, x, y, radius, look = MOON_LOOK) {
   ctx.save();
@@ -471,9 +571,9 @@ function drawLandingPrompt(ctx, width, height) {
 const MINIMAP_RANGE = 20000;
 const MINIMAP_GRID = 2500;
 
-function drawMinimap(ctx, ship, moon, width, height, earth = null, mars = null) {
+function drawMinimap(ctx, ship, moon, width, height, earth = null, markers = []) {
   const panelWidth = 220;
-  const panelHeight = 235;
+  const panelHeight = 250;
   const panelX = width - panelWidth - 25;
   const panelY = height - panelHeight - 45;
 
@@ -517,7 +617,7 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null, mars = null) 
 
   const moonPoint = clampToMap(toMap(moon.x, moon.y));
   const earthPoint = earth ? clampToMap(toMap(earth.x, earth.y)) : null;
-  const marsPoint = mars ? clampToMap(toMap(mars.x, mars.y)) : null;
+  const markerPoints = markers.map(marker => ({ ...marker, point: clampToMap(toMap(marker.body.x, marker.body.y)) }));
 
   const dx = moon.x - ship.x;
   const dy = moon.y - ship.y;
@@ -579,6 +679,17 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null, mars = null) 
     ctx.stroke();
   }
 
+  // The Asteroid Belt: a wide dotted ring around the inner system.
+  const beltCentre = toMap(0, 0);
+  ctx.strokeStyle = 'rgba(190, 170, 140, 0.32)';
+  ctx.lineWidth = Math.max(2, (BELT.outer - BELT.inner) * scale);
+  ctx.setLineDash([2, 3]);
+  ctx.beginPath();
+  ctx.arc(beltCentre.x, beltCentre.y, (BELT.inner + BELT.outer) / 2 * scale, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1;
+
   // Route line from the ship (centre) to the Moon.
   ctx.strokeStyle = 'rgba(170, 190, 150, 0.55)';
   ctx.setLineDash([4, 4]);
@@ -605,7 +716,7 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null, mars = null) 
   };
 
   if (earthPoint) drawPlanetMarker(earthPoint, '#4f8fc4', 4);
-  if (marsPoint) drawPlanetMarker(marsPoint, '#d0704a', 5);
+  for (const marker of markerPoints) drawPlanetMarker(marker.point, marker.color, 5);
   drawPlanetMarker(moonPoint, '#c7c9bd', 5);
 
   // Ship marker: always in the centre, pointing where the ship faces.
@@ -634,24 +745,30 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null, mars = null) 
   ctx.font = '9px monospace';
   ctx.fillText('SHIP', panelX + 27, panelY + 214);
 
-  // Legend dots: MOON · EARTH · MARS.
+  // Legend, two rows: MOON · EARTH · MARS / EUROPA · TITAN · BELT.
+  // Hidden destinations only appear after their star map is found.
+  const has = label => markers.some(marker => marker.label === label);
+  const colorOf = label => markers.find(marker => marker.label === label)?.color;
+
   const legend = [
-    ['MOON', '#c7c9bd', 66],
-    ['EARTH', '#4f8fc4', 112],
-    ['MARS', '#d0704a', 164]
+    ['MOON', '#c7c9bd', 66, 0, true],
+    ['EARTH', '#4f8fc4', 112, 0, Boolean(earth)],
+    ['MARS', colorOf('MARS'), 164, 0, has('MARS')],
+    ['EUROPA', colorOf('EUROPA'), 19, 1, has('EUROPA')],
+    ['TITAN', colorOf('TITAN'), 84, 1, has('TITAN')],
+    ['BELT', 'rgba(190, 170, 140, 0.8)', 142, 1, true]
   ];
 
-  for (const [label, color, offset] of legend) {
-    if (label === 'EARTH' && !earth) continue;
-    if (label === 'MARS' && !mars) continue;
+  for (const [label, color, offset, row, visible] of legend) {
+    if (!visible) continue;
 
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(panelX + offset, panelY + 210, 4, 0, Math.PI * 2);
+    ctx.arc(panelX + offset, panelY + 210 + row * 13, 4, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#aaa';
-    ctx.fillText(label, panelX + offset + 8, panelY + 214);
+    ctx.fillText(label, panelX + offset + 8, panelY + 214 + row * 13);
   }
 
   ctx.fillStyle = '#d5d3c8';
@@ -659,7 +776,7 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null, mars = null) 
   ctx.fillText(
     `MOON ${directions[directionIndex]} · ${Math.round(distance).toLocaleString()}`,
     panelX + 14,
-    panelY + 229
+    panelY + 243
   );
 
   ctx.restore();

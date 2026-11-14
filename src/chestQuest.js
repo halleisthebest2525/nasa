@@ -16,7 +16,9 @@ const OPEN_DISTANCE = 50;
 // Which star map each planet's chest gives, and its display name.
 export const CHEST_REWARDS = {
   moon: { map: 'mars', name: 'MARS' },
-  mars: { map: 'europa', name: 'EUROPA (MOON OF JUPITER)' }
+  mars: { map: 'europa', name: 'EUROPA (MOON OF JUPITER)' },
+  europa: { map: 'titan', name: 'TITAN (MOON OF SATURN)' },
+  titan: { map: 'umbriel', name: 'URANUS (MOON UMBRIEL)' }
 };
 
 // game = { partsSystem, moonSurface, getPlanet(), showTransmission(text, color), onPlanetBeaten(planet) }

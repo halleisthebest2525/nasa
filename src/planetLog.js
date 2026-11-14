@@ -41,7 +41,7 @@ export function createPlanetLog(game) {
     if (id === 'moon' || game.hasMap(id)) {
       return game.getModuleProgress(id) ? ['IN PROGRESS', '#e0c78e'] : ['UNLOCKED · NOT VISITED', '#8fc3e8'];
     }
-    if (id === 'europa' || id === 'titan' || id === 'umbriel') {
+    if (id === 'umbriel') {
       return game.hasMap(id) ? ['MAP ACQUIRED · COMING SOON', '#8fc3e8'] : ['UNCHARTED', '#6a7368'];
     }
     return ['LOCKED · STAR MAP NEEDED', '#b5644e'];

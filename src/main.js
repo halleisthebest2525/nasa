@@ -18,9 +18,12 @@ import { createLunarCrawlers } from './lunarCrawler.js';
 import { createChestQuest } from './chestQuest.js';
 import { PLANETS } from './planets.js';
 import { createMarsMonsters } from './marsMonsters.js';
+import { createEuropaMonsters } from './europaMonsters.js';
 import { createEarthBase } from './earthBase.js';
 import { createPlanetLog } from './planetLog.js';
 import { adminFlags, createAdminMode } from './adminMode.js'; // TEMPORARY
+import { createMusic } from './music.js';
+import { BELT } from './world.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -31,6 +34,12 @@ const world = new World();
 const assets = await loadAssets();
 
 const onFoot = new OnFoot(assets);
+// Sprites the space renderer needs (Asteroid Belt rocks, Jupiter backdrop).
+world.sprites = {
+  asteroids: Array.from({ length: 16 }, (_, i) => assets[`asteroid_${String(i + 1).padStart(2, '0')}`]),
+  jupiter: assets.jupiter_backdrop
+};
+
 const moonSurface = new MoonSurface(assets);
 const survival = new Survival();
 
@@ -121,8 +130,35 @@ const marsMonsters = createMarsMonsters(assets, {
 // Mythic modules only drop on Mars after the boss is defeated.
 partsSystem.setLockedRarities('mars', ['mythic']);
 
+// EUROPA: Frost Skitters and the Cryolith Leviathan.
+const europaMonsters = createEuropaMonsters(assets, {
+  onBossDefeated(x, y) {
+    // The strongest Europa item: a guaranteed LEGENDARY module where it fell.
+    partsSystem.addRewardPart(x, y, 'legendary');
+    partsSystem.setLockedRarities('europa', []);
+
+    showTransmission(
+      'CRYOLITH LEVIATHAN DEFEATED\n' +
+      'A LEGENDARY MODULE LIES WHERE IT FELL\n' +
+      'LEGENDARY SALVAGE NOW APPEARS ON EUROPA',
+      '#8fe0ff'
+    );
+  },
+  onBossPhase(phase) {
+    showMoonMessage(phase === 2
+      ? 'THE LEVIATHAN CRACKS · PHASE 2 · WATCH FOR ICE SPIRES'
+      : 'THE LEVIATHAN RAGES · PHASE 3 · IT IS FASTER NOW');
+  },
+  onAbsoluteZero() {
+    showMoonMessage('ABSOLUTE ZERO · RUN OUT OF THE CIRCLE');
+  }
+});
+
+// Legendary modules only drop on Europa after the boss is defeated.
+partsSystem.setLockedRarities('europa', ['legendary']);
+
 // Which enemy group lives on each planet (see planets.js "enemies").
-const ENEMY_GROUPS = { moon: crawlers, mars: marsMonsters };
+const ENEMY_GROUPS = { moon: crawlers, mars: marsMonsters, europa: europaMonsters };
 
 function currentEnemies() {
   return ENEMY_GROUPS[PLANETS[landedPlanet].enemies] || null;
@@ -1282,6 +1318,7 @@ function finishSleep() {
 
   crawlers.respawn(moonSurface.x, moonSurface.y);
   marsMonsters.respawn(moonSurface.x, moonSurface.y);
+  europaMonsters.respawn(moonSurface.x, moonSurface.y);
 
   showTransmission(
     'LONG-RANGE SCAN COMPLETE\n' +
@@ -1748,17 +1785,17 @@ window.addEventListener('keydown', (event) => {
 
   if (gameMode === 'driving') {
     // Which planet (if any) is close enough to land on?
-    const nearPlanet = ['earth', 'moon', 'mars'].find(id => {
+    const nearPlanet = ['earth', 'moon', 'mars', 'europa', 'titan'].find(id => {
       const body = world[id];
       return body && Math.hypot(body.x - ship.x, body.y - ship.y) <= body.radius + 125;
     });
 
-    if (nearPlanet === 'mars' && !chestQuest.getState().marsMap) {
-      // Mars needs the star map from the Moon chest.
+    if (MAP_SOURCES[nearPlanet] && !chestQuest.getState().maps[nearPlanet]) {
+      // Hidden destinations need the star map from the previous chest.
       showTransmission(
         'NAVIGATION DATA MISSING\n' +
-        'MARS LANDING REQUIRES THE MARS STAR MAP\n' +
-        'FIND THE CHEST ON THE MOON',
+        `${PLANETS[nearPlanet].name} LANDING REQUIRES THE ${PLANETS[nearPlanet].name} STAR MAP\n` +
+        `FIND THE CHEST ON ${MAP_SOURCES[nearPlanet]}`,
         '#d0704a'
       );
     } else if (nearPlanet === 'earth') {
@@ -2243,8 +2280,127 @@ function handleFuelDepletion() {
   showEmergencyFuelMessage();
   saveCurrentGame('Autosave');
 }
+// Where each hidden destination's star map comes from.
+const MAP_SOURCES = { mars: 'THE MOON', europa: 'MARS', titan: 'EUROPA' };
+
+// ASTEROID BELT: is the ship inside (or right next to) the ring?
+function shipInBelt(margin = 0) {
+  const distance = Math.hypot(ship.x, ship.y);
+  return distance > BELT.inner - margin && distance < BELT.outer + margin;
+}
+
+// Belt rocks hit harder to dodge than to survive: same damage as a
+// normal asteroid, but there are a lot of them.
+function checkBeltCollisions() {
+  if (!shipInBelt(200)) return;
+
+  for (const rock of world.belt) {
+    const dx = rock.x - ship.x;
+    if (dx > 120 || dx < -120) continue;
+
+    const dy = rock.y - ship.y;
+    if (dy > 120 || dy < -120) continue;
+
+    const distance = Math.hypot(dx, dy);
+    const collisionDistance = rock.size * 0.4 + 26;
+
+    if (distance >= collisionDistance) continue;
+
+    const nx = distance > 0.001 ? dx / distance : Math.cos(ship.angle);
+    const ny = distance > 0.001 ? dy / distance : Math.sin(ship.angle);
+    const overlap = collisionDistance - distance + 2;
+
+    // Bounce back a little instead of a dead stop, so the ship can't get stuck.
+    ship.x -= nx * overlap;
+    ship.y -= ny * overlap;
+    ship.vx = -nx * 40;
+    ship.vy = -ny * 40;
+    ship.boosting = false;
+
+    if (!collisionCooldowns.has(rock.id) && !gameOver) {
+      collisionCooldowns.set(rock.id, 1.2);
+      handleImpact();
+    }
+  }
+}
+
+// SOUNDTRACK: which track fits what the player is doing right now.
+const music = createMusic();
+let dangerHold = 0;        // keeps the danger track on a few seconds after the threat ends
+let dangerCheckTimer = 0;
+let stingCooldown = 0;
+let monstersHunting = false;
+
+function monstersAreHunting() {
+  const enemies = currentEnemies();
+  if (!enemies) return false;
+
+  const info = enemies.list();
+  const group = Array.isArray(info) ? info : info.stalkers || [];
+
+  if (group.some(monster => monster.alerted && monster.state !== 'die')) return true;
+
+  const boss = Array.isArray(info) ? null : info.boss;
+  if (!boss || info.bossDefeated || boss.state === 'die') return false;
+  return boss.alerted !== undefined ? boss.alerted : boss.state !== 'idle';
+}
+
+function updateMusic(dt) {
+  dangerCheckTimer -= dt;
+  stingCooldown = Math.max(0, stingCooldown - dt);
+  dangerHold = Math.max(0, dangerHold - dt);
+
+  // Checking the monsters twice a second is plenty.
+  if (dangerCheckTimer <= 0) {
+    dangerCheckTimer = 0.5;
+
+    const hunting = gameMode === 'moon' && !sleeping && monstersAreHunting();
+
+    if (hunting && !monstersHunting && stingCooldown <= 0) {
+      music.sting();           // "monster appears" sound
+      stingCooldown = 12;
+    }
+
+    monstersHunting = hunting;
+  }
+
+  const inBelt = gameMode === 'driving' && launchComplete && shipInBelt(150);
+
+  if (monstersHunting || inBelt) dangerHold = 4;
+
+  let situation;
+
+  if (gameOver) {
+    situation = null;                                   // silence
+  } else if (earthBase.isOpen() || !launchComplete) {
+    situation = 'earth';                                // launch pad / shipyard
+  } else if (computerOpen) {
+    situation = 'shop';                                 // ship computer + shop
+  } else if (dangerHold > 0 && (gameMode === 'moon' || gameMode === 'driving')) {
+    situation = 'danger';                               // monsters / boss / Asteroid Belt
+  } else if (gameMode === 'moon' || landedOnMoon) {
+    situation = landedPlanet;                           // on a world (or in the landed ship)
+  } else {
+    // In space: the theme of a nearby world, otherwise the travel theme.
+    situation = 'travel';
+
+    for (const id of ['earth', 'moon', 'mars', 'europa', 'titan']) {
+      const body = world[id];
+
+      if (body && Math.hypot(body.x - ship.x, body.y - ship.y) < body.radius + 1800) {
+        situation = id;
+        break;
+      }
+    }
+  }
+
+  music.update(dt, situation, paused);
+}
+
 // COLLISION DETECTION
 function checkCollisions() {
+  checkBeltCollisions();
+
   for (const asteroid of world.asteroids) {
     // Space does not wrap around, so a plain difference is correct.
     const dx = asteroid.x - ship.x;
@@ -2394,7 +2550,8 @@ function createSnapshot() {
       progress: chestQuest.save(),
 
       // Mars boss: defeated or not.
-      marsBoss: marsMonsters.save()
+      marsBoss: marsMonsters.save(),
+      europaBoss: europaMonsters.save()
     },
 
     onFoot: saveOnFoot,
@@ -2455,6 +2612,8 @@ function loadPendingSave() {
     // Mars boss state; mythic stays locked on Mars until it is defeated.
     marsMonsters.load(save.moon?.marsBoss);
     partsSystem.setLockedRarities('mars', marsMonsters.isBossDefeated() ? [] : ['mythic']);
+    europaMonsters.load(save.moon?.europaBoss);
+    partsSystem.setLockedRarities('europa', europaMonsters.isBossDefeated() ? [] : ['legendary']);
 
     if (save.moon && PLANETS[landedPlanet].chestQuest) {
       chestQuest.checkModules();
@@ -2543,6 +2702,10 @@ window.NasarethGame = {
     return marsMonsters.list();
   },
 
+  debugEuropa() {
+    return europaMonsters.list();
+  },
+
   debugCrawlers() {
     return {
       alive: crawlers.list(),
@@ -2570,9 +2733,9 @@ createAdminMode({
   giveAllMaps() {
     const saved = chestQuest.save();
     saved.chestDetector = true;
-    saved.maps = { ...saved.maps, mars: true, europa: true };
+    saved.maps = { ...saved.maps, mars: true, europa: true, titan: true };
     chestQuest.load(saved);
-    return 'MARS + EUROPA MAPS GIVEN';
+    return 'MARS + EUROPA + TITAN MAPS GIVEN';
   },
   maxGear() {
     survival.flashlightLevel = FLASHLIGHT_PRICES.length;
@@ -2594,6 +2757,14 @@ createAdminMode({
     const count = partsSystem.collectAll();
     return count ? `COLLECTED ${count} MODULES` : 'NO MODULES LEFT';
   },
+  gotoBoss() {
+    if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
+    const lair = { mars: [-2800, -2600], europa: [2900, -2700] }[landedPlanet];
+    if (!lair) return 'NO BOSS ON THIS PLANET';
+    moonSurface.x = lair[0];
+    moonSurface.y = lair[1] + 480;
+    return 'TELEPORTED NEAR THE BOSS LAIR';
+  },
   gotoChest() {
     if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
     const chest = chestQuest.getState().chests[landedPlanet];
@@ -2604,7 +2775,10 @@ createAdminMode({
   },
   flyTo(id) {
     if (gameMode !== 'driving') return 'MUST BE FLYING IN SPACE (leave the ship/planet first)';
-    const body = world[id];
+    // The belt: just inside its inner edge, on the way from Mars to Europa.
+    const body = id === 'belt'
+      ? { x: -0.747 * (BELT.inner - 400), y: -0.664 * (BELT.inner - 400), radius: -60 }
+      : world[id];
     ship.x = body.x;
     ship.y = body.y - body.radius - 60;
     ship.vx = 0;
@@ -2763,6 +2937,8 @@ function frame(time) {
 
   previous = time;
 
+  updateMusic(dt);
+
   // ADMIN MODE (temporary): god mode keeps everything full.
   if (adminFlags.god && !gameOver) {
     hull = hullMax;
@@ -2795,6 +2971,7 @@ function frame(time) {
       };
       crawlers.tickRespawns(dt, respawnView);
       marsMonsters.tickRespawns(dt, respawnView);
+      europaMonsters.tickRespawns(dt, respawnView);
 
       clockAccumulator += dt * 2;
 
@@ -2943,7 +3120,7 @@ function frame(time) {
     }
 
     // Mars appears on the space map only after the Mars star map is found.
-    world.marsDiscovered = chestQuest.getState().marsMap;
+    world.discovered = chestQuest.getState().maps;
 
     drawWorld(
       pixelCtx,
@@ -2964,6 +3141,8 @@ function frame(time) {
     // Boss health bar on Mars.
     if (landedPlanet === 'mars') {
       marsMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
+    } else if (landedPlanet === 'europa') {
+      europaMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
     }
 
     // Red flash when a Lunar Crawler hits the player.

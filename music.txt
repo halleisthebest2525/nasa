@@ -1,1 +1,13 @@
 mainmenu=./audio/main-menu.mp3
+
+# In-game soundtrack (src/music.js picks the track for each situation).
+earth=./audio/Earth.mp3
+travel=./audio/Going to Moon.mp3
+moon=./audio/Moon.mp3
+mars=./audio/Mars.mp3
+europa=./audio/Europa.mp3
+titan=./audio/Titan.mp3
+uranus=./audio/Uranus.mp3
+shop=./audio/Shopping shop.mp3
+danger=./audio/Monster.mp3
+sting=./audio/monster-appears.mp3

@@ -123,7 +123,9 @@ function rollRarity(planet = 'moon') {
 const PARTS_PER_MOON = 6;
 
 // Modules lying on each planet (Mars has a few more than the Moon).
-const PARTS_PER_PLANET = { moon: 6, mars: 7 };
+// Collecting all of them spawns the chest with the next star map:
+// Moon 8 -> Mars, Mars 10 -> Europa, Europa 12 -> Titan, Titan 14 -> Uranus.
+const PARTS_PER_PLANET = { moon: 8, mars: 10, europa: 12, titan: 14 };
 const partsCount = planet => PARTS_PER_PLANET[planet] || PARTS_PER_MOON;
 
 // Creates a fresh batch of modules scattered over the Moon.

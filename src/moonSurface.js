@@ -234,6 +234,12 @@ export class MoonSurface {
     // HARD PLAYER-CENTERED VISIBILITY
     this.drawVisibility(ctx, width, height);
 
+    // Glowing attack warnings (boss circles, shockwaves) shine through the
+    // darkness, so the player can always see them coming.
+    if (this.enemies && this.enemies.drawGlow) {
+      this.enemies.drawGlow(ctx, cameraX, cameraY, width, height);
+    }
+
     // UI stays visible above the darkness.
     this.drawInteractionPrompt(ctx, centerX, centerY);
 

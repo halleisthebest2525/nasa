@@ -1,6 +1,7 @@
 export const CONFIG = {
-  // Space is 44000 x 44000 (edges at ±22000), big enough for Mars.
-  worldSize: 44000,
+  // Space is 100000 x 100000 (edges at ±50000): room for the Asteroid Belt,
+  // Europa and Titan. Random asteroids stay in the inner ±22000.
+  worldSize: 100000,
   starCount: 700,
   // Same asteroid density as before (140 in the old 30000 space).
   asteroidCount: 300,

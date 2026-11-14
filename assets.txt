@@ -1,3 +1,7 @@
+# Space background (seamless 1024x1024 pixel-art textures)
+space_starfield=img/space_starfield_seamless_1024.png
+space_stars_overlay=img/tiny_stars_overlay_seamless_1024.png
+
 # Ship sprites
 ship_space_common=img/Rocket_Common_Cargo_Open.png
 ship_moon_common=img/Rocket_Common_Closed.png

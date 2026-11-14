@@ -6,9 +6,100 @@ export function drawBackground(ctx, width, height) {
   ctx.fillRect(0, 0, width, height);
 }
 
-export function drawWorld(ctx, world, ship, width, height, sprite, minimapOpen = false) {
-  // Stars.
-  for (const star of world.stars) {
+// Offscreen layer for asteroids and the Moon. The darkness is applied to
+// this layer only, so the distant star background stays visible.
+const objectLayer = document.createElement('canvas');
+const objectCtx = objectLayer.getContext('2d');
+
+// texturedBackground = true when spaceBackground.js already drew the stars.
+export function drawWorld(
+  ctx,
+  world,
+  ship,
+  width,
+  height,
+  sprite,
+  minimapOpen = false,
+  texturedBackground = false
+) {
+  // Match the object layer to the pixel canvas and its transform
+  // (scale + screen shake).
+  if (
+    objectLayer.width !== ctx.canvas.width ||
+    objectLayer.height !== ctx.canvas.height
+  ) {
+    objectLayer.width = ctx.canvas.width;
+    objectLayer.height = ctx.canvas.height;
+  }
+
+  objectCtx.setTransform(1, 0, 0, 1, 0, 0);
+  objectCtx.clearRect(0, 0, objectLayer.width, objectLayer.height);
+  objectCtx.setTransform(ctx.getTransform());
+  objectCtx.imageSmoothingEnabled = false;
+
+  drawWorldObjects(objectCtx, world, ship, width, height, texturedBackground);
+
+  // Hide objects in the dark exactly like before (same gradient),
+  // but only on the object layer.
+  objectCtx.globalCompositeOperation = 'destination-out';
+  drawVisibility(objectCtx, width, height);
+  objectCtx.globalCompositeOperation = 'source-over';
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(objectLayer, 0, 0);
+  ctx.restore();
+
+  if (texturedBackground) {
+    // Gently dim the far stars away from the rocket for atmosphere.
+    drawSoftVignette(ctx, width, height);
+  } else {
+    // No textures: full darkness, as before.
+    drawVisibility(ctx, width, height);
+  }
+
+  drawShip(ctx, ship, width, height, sprite);
+
+  const moonDistance = Math.hypot(
+    wrap(world.moon.x - ship.x, CONFIG.worldSize),
+    wrap(world.moon.y - ship.y, CONFIG.worldSize)
+  );
+
+  // Landing prompt.
+  if (moonDistance <= world.moon.radius + 125) {
+    drawLandingPrompt(ctx, width, height);
+  }
+
+  if (minimapOpen) {
+    drawMinimap(ctx, ship, world.moon, width, height);
+  }
+}
+
+function drawSoftVignette(ctx, width, height) {
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const radius = Math.hypot(width, height) / 2;
+
+  const shade = ctx.createRadialGradient(
+    centerX,
+    centerY,
+    260,
+    centerX,
+    centerY,
+    Math.max(radius, 300)
+  );
+
+  shade.addColorStop(0, 'rgba(0,0,0,0)');
+  shade.addColorStop(1, 'rgba(0,0,0,0.55)');
+
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, 0, width, height);
+}
+
+// Asteroids, the Moon, and (only without textures) the old dot stars.
+function drawWorldObjects(ctx, world, ship, width, height, texturedBackground) {
+  // Old procedural stars: fallback when the textures could not load.
+  for (const star of texturedBackground ? [] : world.stars) {
     const x = width / 2 + wrap(
       star.x - ship.x,
       CONFIG.worldSize
@@ -75,7 +166,6 @@ export function drawWorld(ctx, world, ship, width, height, sprite, minimapOpen =
 
   const moonScreenX = width / 2 + moonDX;
   const moonScreenY = height / 2 + moonDY;
-  const moonDistance = Math.hypot(moonDX, moonDY);
 
   if (
     Math.abs(moonDX) < width / 2 + world.moon.radius &&
@@ -87,19 +177,6 @@ export function drawWorld(ctx, world, ship, width, height, sprite, minimapOpen =
       moonScreenY,
       world.moon.radius
     );
-  }
-
-  drawShip(ctx, ship, width, height, sprite);
-
-  drawVisibility(ctx, width, height);
-
-  // Landing prompt. Landing functionality comes later.
-  if (moonDistance <= world.moon.radius + 125) {
-    drawLandingPrompt(ctx, width, height);
-  }
-
-  if (minimapOpen) {
-    drawMinimap(ctx, ship, world.moon, width, height);
   }
 }
 

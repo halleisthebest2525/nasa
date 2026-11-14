@@ -10,6 +10,7 @@ import { Survival } from './survival.js';
 import { attachPartsSystem } from './partsSystem.js';
 import { readSaves, writeSave, removeSave, applySnapshot } from './saveSystem.js';
 import { isTypingTarget } from './input.js';
+import { createSpaceBackground } from './spaceBackground.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -24,6 +25,7 @@ const moonSurface = new MoonSurface(assets);
 const survival = new Survival();
 
 const partsSystem = attachPartsSystem(moonSurface);
+const spaceBackground = createSpaceBackground(assets);
 let moduleStats = partsSystem.getStats();
 
 let hullMax = moduleStats.maxHull;
@@ -2087,6 +2089,14 @@ function frame(time) {
   drawBackground(pixelCtx, width, height);
 
   if (gameMode === 'driving') {
+    // Pixel-art parallax star textures (behind everything else).
+    // Frozen while paused or after game over.
+    const texturedBackground = spaceBackground.draw(
+      pixelCtx,
+      ship,
+      paused || gameOver ? 0 : dt
+    );
+
     pixelCtx.save();
 
     if (shake > 0) {
@@ -2103,7 +2113,8 @@ function frame(time) {
       width,
       height,
       shipSprite,
-      minimapOpen
+      minimapOpen,
+      texturedBackground
     );
 
     drawParticles(pixelCtx);

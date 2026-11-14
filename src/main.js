@@ -6,6 +6,7 @@ import { drawBackground, drawWorld } from './renderer.js';
 import { updateHud } from './hud.js';
 import { MoonSurface } from './moonSurface.js';
 import { loadAssets } from './assets.js';
+import { Survival } from './survival.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -17,6 +18,7 @@ const assets = await loadAssets();
 
 const onFoot = new OnFoot(assets);
 const moonSurface = new MoonSurface(assets);
+const survival = new Survival();
 
 let landedOnMoon = false;
 const shipSprite = assets.ship_space;
@@ -44,6 +46,35 @@ let clockAccumulator = 0;
 
 const particles = [];
 const collisionCooldowns = new Map();
+
+// TRACK HELD KEYS FOR RESOURCE SYSTEMS
+const heldKeys = new Set();
+
+window.addEventListener('keydown', event => {
+  heldKeys.add(event.key.toLowerCase());
+});
+
+window.addEventListener('keyup', event => {
+  heldKeys.delete(event.key.toLowerCase());
+});
+
+window.addEventListener('blur', () => {
+  heldKeys.clear();
+});
+
+function isMovingOnFoot() {
+  return [
+    'w', 'a', 's', 'd',
+    'arrowup', 'arrowdown',
+    'arrowleft', 'arrowright'
+  ].some(key => heldKeys.has(key));
+}
+
+function isRunning() {
+  return heldKeys.has('shift') &&
+    isMovingOnFoot() &&
+    survival.stamina > 0;
+}
 
 // RENDERING
 const pixelCanvas = document.createElement('canvas');
@@ -436,21 +467,47 @@ function renderComputer() {
         margin:0 0 15px;
         font-size:26px;
         letter-spacing:4px;
-      ">BUY ITEMS</h1>
+      ">BUY SUPPLIES</h1>
 
       <div style="
-        padding:35px 15px;
-        border:1px dashed #465447;
-        background:#111814;
-        color:#899382;
-        font-size:13px;
-        line-height:2;
-        margin-bottom:22px;
+        display:flex;
+        flex-direction:column;
+        gap:12px;
+        margin-bottom:20px;
       ">
-        NO ITEMS AVAILABLE<br>
-        <span style="color:#64705e;font-size:11px">
-          STORE INVENTORY COMING SOON
-        </span>
+        <div class="computer-item">
+          <span style="color:#d5b66b">SHIP FUEL</span>
+          <strong>${Math.round(survival.fuel)}%</strong>
+          <small>+20% FUEL · 30 CREDITS</small>
+          <button
+            id="buy-fuel"
+            class="computer-button"
+            ${survival.fuel >= 100 || credits < 30 ? 'disabled' : ''}
+          >
+            PURCHASE FUEL
+          </button>
+        </div>
+
+        <div class="computer-item">
+          <span style="color:#77b9d4">SHIP OXYGEN</span>
+          <strong>${Math.round(survival.shipOxygen)}%</strong>
+          <small>+20% OXYGEN · 30 CREDITS</small>
+          <button
+            id="buy-oxygen"
+            class="computer-button"
+            ${survival.shipOxygen >= 100 || credits < 30 ? 'disabled' : ''}
+          >
+            PURCHASE OXYGEN
+          </button>
+        </div>
+      </div>
+
+      <div style="
+        color:#c7d5ae;
+        font-size:13px;
+        margin-bottom:18px;
+      ">
+        AVAILABLE CREDITS: ${credits}
       </div>
 
       <button id="computer-back" class="computer-button secondary">
@@ -545,6 +602,8 @@ function renderComputer() {
   const closeButton = computerScreen.querySelector('#computer-close');
   const backButton = computerScreen.querySelector('#computer-back');
   const sellAllButton = computerScreen.querySelector('#computer-sell-all');
+  const buyFuelButton = computerScreen.querySelector('#buy-fuel');
+  const buyOxygenButton = computerScreen.querySelector('#buy-oxygen');
 
   if (sellButton) {
     sellButton.addEventListener('click', () => {
@@ -580,6 +639,22 @@ function renderComputer() {
       renderComputer();
     });
   }
+
+  if (buyFuelButton) {
+    buyFuelButton.addEventListener('click', () => {
+      if (survival.buyFuel(scraps)) {
+        renderComputer();
+      }
+    });
+  }
+
+  if (buyOxygenButton) {
+    buyOxygenButton.addEventListener('click', () => {
+      if (survival.buyOxygen(scraps)) {
+        renderComputer();
+      }
+    });
+  }
 }
 
 // HULL SYSTEM
@@ -612,6 +687,26 @@ function updateHull() {
 }
 
 updateHull();
+
+// LIFE SUPPORT GAME OVER
+function triggerLifeSupportFailure() {
+  if (gameOver) return;
+
+  gameOver = true;
+
+  ship.vx = 0;
+  ship.vy = 0;
+  ship.boosting = false;
+
+  closeComputer();
+
+  gameOverScreen.querySelector('div').textContent = 'LIFE SUPPORT FAILED';
+  gameOverScreen.querySelector('div').style.color = '#77b9d4';
+  gameOverScreen.children[1].textContent = 'SUIT OXYGEN: 0%';
+  gameOverScreen.children[2].textContent = 'MISSION FAILED';
+
+  gameOverScreen.style.display = 'flex';
+}
 
 // SLEEP SYSTEM
 function updateSleepButtons() {
@@ -870,6 +965,25 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
+// METAL DETECTOR KEY
+window.addEventListener('keydown', (event) => {
+  if (
+    event.code !== 'KeyQ' ||
+    event.repeat ||
+    gameMode !== 'moon' ||
+    gameOver ||
+    sleeping ||
+    computerOpen ||
+    moonSurface.scraps.inventoryOpen ||
+    launchConfirmationOpen ||
+    sleepConfirmationOpen
+  ) return;
+
+  survival.detectorOn = !survival.detectorOn;
+  survival.detectorFlash = 0;
+  survival.detectorLit = false;
+});
+
 // COMPUTER CLOSE KEY
 window.addEventListener('keydown', (event) => {
   if (!computerOpen) return;
@@ -957,6 +1071,7 @@ window.addEventListener('keydown', (event) => {
     // ENTER SHIP FROM THE MOON.
     if (moonSurface.canEnterShip()) {
       moonSurface.clearKeys();
+      survival.refillSuit();
       onFoot.enter();
       gameMode = 'walking';
 
@@ -1108,6 +1223,84 @@ function drawParticles(context) {
   }
 }
 
+// SURVIVAL EQUIPMENT DISPLAY
+function drawSurvivalEquipment(context) {
+  // METAL DETECTOR
+  if (gameMode === 'moon' && survival.detectorOn) {
+    const nearest = moonSurface.scraps.getNearestUncollected(
+      moonSurface.x,
+      moonSurface.y
+    );
+
+    context.save();
+
+    context.fillStyle = 'rgba(0,0,0,.8)';
+    context.fillRect(18, 18, 190, 52);
+
+    context.strokeStyle = '#62665b';
+    context.strokeRect(18, 18, 190, 52);
+
+    context.fillStyle = '#c5c9b8';
+    context.font = 'bold 11px monospace';
+    context.textAlign = 'left';
+    context.fillText('METAL DETECTOR [Q]', 30, 37);
+
+    context.beginPath();
+    context.arc(39, 53, 5, 0, Math.PI * 2);
+    context.fillStyle = survival.detectorLit ? '#ff3028' : '#54201d';
+    context.shadowColor = '#ff3028';
+    context.shadowBlur = survival.detectorLit ? 12 : 0;
+    context.fill();
+
+    context.shadowBlur = 0;
+    context.fillStyle = '#a8ad9d';
+    context.font = '10px monospace';
+    context.fillText(
+      nearest ? `${Math.round(nearest.distance)}m · SIGNAL` : 'NO SIGNAL',
+      53,
+      57
+    );
+
+    context.restore();
+  }
+
+  // SHIP FUEL AND OXYGEN TANKS
+  if (gameMode === 'walking') {
+    const tankY = height - 145;
+
+    context.save();
+
+    context.fillStyle = 'rgba(0,0,0,.78)';
+    context.fillRect(width - 160, tankY - 12, 142, 118);
+
+    context.strokeStyle = '#65705f';
+    context.strokeRect(width - 160, tankY - 12, 142, 118);
+
+    function drawTank(x, y, label, value, color) {
+      const amount = Math.max(0, Math.min(100, value));
+
+      context.fillStyle = '#c7cbbd';
+      context.font = '10px monospace';
+      context.textAlign = 'left';
+      context.fillText(label, x, y);
+
+      context.fillStyle = '#303a34';
+      context.fillRect(x, y + 8, 112, 12);
+
+      context.fillStyle = color;
+      context.fillRect(x, y + 8, 112 * amount / 100, 12);
+
+      context.fillStyle = '#d5d0c5';
+      context.fillText(`${Math.round(amount)}%`, x + 116, y + 18);
+    }
+
+    drawTank(width - 148, tankY + 5, 'FUEL TANK', survival.fuel, '#d5b66b');
+    drawTank(width - 148, tankY + 55, 'OXYGEN TANK', survival.shipOxygen, '#77b9d4');
+
+    context.restore();
+  }
+}
+
 // IMPACT
 function handleImpact() {
   ship.vx = 0;
@@ -1243,12 +1436,44 @@ function frame(time) {
         !moonSurface.scraps.inventoryOpen
       ) {
         if (gameMode === 'driving') {
-          ship.update(dt);
+          const forwardPressed =
+            heldKeys.has('w') || heldKeys.has('arrowup');
+
+          const reversePressed =
+            heldKeys.has('s') || heldKeys.has('arrowdown');
+
+          const engineActive = forwardPressed || reversePressed;
+          const boostRequested = forwardPressed && heldKeys.has('shift');
+
+          survival.updateFuel(
+            dt,
+            engineActive,
+            boostRequested
+          );
+
+          ship.update(dt, survival.fuel > 0);
           checkCollisions();
         } else if (gameMode === 'walking') {
           onFoot.update(dt);
+          survival.updateStamina(dt, isRunning());
         } else if (gameMode === 'moon') {
           moonSurface.update(dt);
+
+          survival.updateMoon(dt, isRunning());
+
+          const nearest = moonSurface.scraps.getNearestUncollected(
+            moonSurface.x,
+            moonSurface.y
+          );
+
+          survival.updateDetector(
+            dt,
+            nearest ? nearest.distance : null
+          );
+
+          if (survival.health <= 0) {
+            triggerLifeSupportFailure();
+          }
         }
       }
     }
@@ -1285,8 +1510,7 @@ function frame(time) {
     onFoot.draw(pixelCtx, width, height);
   }
 
-  // Draw the inventory in every mode except Moon,
-  // because MoonSurface already draws it itself.
+  // DRAW INVENTORY IN EVERY MODE EXCEPT MOON.
   if (
     gameMode !== 'moon' &&
     moonSurface.scraps.inventoryOpen
@@ -1297,6 +1521,9 @@ function frame(time) {
       height
     );
   }
+
+  // DRAW DETECTOR AND TANK STATUS.
+  drawSurvivalEquipment(pixelCtx);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = false;
@@ -1309,7 +1536,7 @@ function frame(time) {
     canvas.height
   );
 
-  updateHud(ship, hull);
+  updateHud(ship, hull, survival, gameMode);
 
   requestAnimationFrame(frame);
 }

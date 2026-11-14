@@ -53,6 +53,30 @@ export class ScrapSystem {
     this.inventoryOpen = false;
   }
 
+  // Finds the closest scrap that has not been collected.
+  getNearestUncollected(x, y) {
+    let nearest = null;
+    let nearestDistance = Infinity;
+
+    for (const item of this.items) {
+      if (item.collected) continue;
+
+      const distance = Math.hypot(
+        item.x - x,
+        item.y - y
+      );
+
+      if (distance < nearestDistance) {
+        nearest = item;
+        nearestDistance = distance;
+      }
+    }
+
+    return nearest
+      ? { item: nearest, distance: nearestDistance }
+      : null;
+  }
+
   sellAll() {
     let earnings = 0;
 
@@ -85,13 +109,17 @@ export class ScrapSystem {
 
   update(playerX, playerY, dt) {
     this.pickupTimer = Math.max(0, this.pickupTimer - dt);
+
     if (this.inventoryOpen) return;
 
     for (const item of this.items) {
       if (item.collected) continue;
 
-      if (Math.hypot(item.x - playerX, item.y - playerY) <= PICKUP_DISTANCE) {
+      if (
+        Math.hypot(item.x - playerX, item.y - playerY) <= PICKUP_DISTANCE
+      ) {
         item.collected = true;
+
         this.inventory.push({
           id: item.id,
           rarity: item.rarity

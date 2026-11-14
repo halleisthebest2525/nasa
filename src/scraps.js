@@ -45,6 +45,12 @@ export class ScrapSystem {
     }
   }
 
+  // Replace all scrap on the surface with a fresh batch (each new day).
+  respawn() {
+    this.items = [];
+    this.generate();
+  }
+
   toggleInventory() {
     this.inventoryOpen = !this.inventoryOpen;
   }

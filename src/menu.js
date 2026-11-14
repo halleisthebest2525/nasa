@@ -330,21 +330,6 @@ document
   });
 
 window.addEventListener('nasareth:pause', () => {
-  const shouldQuit = window.confirm(
-    'Do you want to save and quit this expedition?'
-  );
-
-  if (shouldQuit) {
-    const saved = window.NasarethGame?.save('Autosave');
-
-    if (saved) {
-      location.reload();
-      return;
-    }
-
-    window.alert('SAVE FAILED. Your expedition was not closed.');
-  }
-
   pauseMenu.classList.add('pause-visible');
   document.querySelector('#save-status').textContent = '';
 });

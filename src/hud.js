@@ -3,13 +3,6 @@ const speed = document.querySelector('#speed');
 const meter = document.querySelector('#speed-meter');
 const coords = document.querySelector('#coords');
 
-const hullElements = [
-  document.querySelector('#hull'),
-  document.querySelector('#hull-value'),
-  document.querySelector('#hull-percent'),
-  document.querySelector('#hull-bar')
-].filter(Boolean);
-
 const survivalPanel = document.createElement('div');
 
 survivalPanel.style.cssText = `
@@ -63,15 +56,7 @@ export function updateHud(ship, hull = 100, survival = null, mode = 'driving') {
       `SECTOR 01 · X ${Math.round(ship.x)} · Y ${Math.round(ship.y)}`;
   }
 
-  for (const element of hullElements) {
-    if (element.id === 'hull-bar') {
-      element.style.width = `${hull}%`;
-    } else {
-      element.textContent = `${hull}%`;
-    }
-
-    element.style.color = hull <= 30 ? '#e45d4c' : '';
-  }
+  // The hull display is handled by updateHull() in main.js.
 
   if (!survival) return;
 
@@ -79,7 +64,7 @@ export function updateHud(ship, hull = 100, survival = null, mode = 'driving') {
     <div style="color:#aab99b;font-weight:bold;margin-bottom:10px">
       SURVIVAL SYSTEMS
     </div>
-    ${resourceRow('FUEL', survival.fuel, '#d5b66b')}
+    ${resourceRow('FUEL', survival.fuel / (survival.maxFuel || 100) * 100, '#d5b66b')}
     ${resourceRow('SHIP O₂', survival.shipOxygen, '#77b9d4')}
     ${resourceRow('SUIT O₂', survival.oxygen, '#77b9d4')}
     ${resourceRow('HEALTH', survival.health, '#c66c60')}

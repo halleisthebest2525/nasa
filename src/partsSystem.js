@@ -44,31 +44,43 @@ function randomRange(min, max) {
   return min + Math.random() * (max - min);
 }
 
-function createInitialState() {
-  const parts = [];
+// Drop chances: common 45%, rare 30%, epic 15%, mythic 7%, legendary 3%.
+function rollRarity() {
+  const roll = Math.random() * 100;
 
-  for (let i = 0; i < 2; i++) {
+  if (roll >= 97) return 'legendary';
+  if (roll >= 90) return 'mythic';
+  if (roll >= 75) return 'epic';
+  if (roll >= 45) return 'rare';
+  return 'common';
+}
+
+// Creates a fresh batch of 6-8 modules scattered over the Moon.
+function createParts() {
+  const parts = [];
+  const count = 6 + Math.floor(Math.random() * 3);
+  const batch = Date.now().toString(36);
+
+  for (let i = 0; i < count; i++) {
     const angle = randomRange(0, Math.PI * 2);
     const distance = randomRange(1000, SURFACE_RADIUS * 0.82);
-    const roll = Math.random() * 100;
-
-    let rarity = 'common';
-
-    if (roll >= 97) rarity = 'epic';
-    else if (roll >= 70) rarity = 'rare';
 
     parts.push({
-      id: `moon-part-${i}`,
+      id: `moon-part-${batch}-${i}`,
       type: TYPES[Math.floor(Math.random() * TYPES.length)],
-      rarity,
+      rarity: rollRarity(),
       x: Math.cos(angle) * distance,
       y: Math.sin(angle) * distance,
       collected: false
     });
   }
 
+  return parts;
+}
+
+function createInitialState() {
   return {
-    items: parts,
+    items: createParts(),
     inventory: [],
     installed: {
       engine: 'base',
@@ -110,7 +122,11 @@ export function attachPartsSystem(moonSurface) {
       rarity => RARITIES[rarity]?.rank ?? 0
     );
 
-    const shipRank = Math.min(...ranks);
+    // Ship rarity (and sprite) is the average of all five modules,
+    // rounded down, so every upgrade counts.
+    const shipRank = Math.floor(
+      ranks.reduce((total, rank) => total + rank, 0) / ranks.length
+    );
 
     const engineRank = RARITIES[installed.engine]?.rank ?? 0;
     const tankRank = RARITIES[installed.fuelTank]?.rank ?? 0;
@@ -199,8 +215,11 @@ export function attachPartsSystem(moonSurface) {
 
   const originalUpdate = moonSurface.update.bind(moonSurface);
 
-  moonSurface.update = function(dt) {
-    originalUpdate(dt);
+  // Pass every argument through (dt AND canRun) to the original update.
+  moonSurface.update = function(dt, ...args) {
+    originalUpdate(dt, ...args);
+
+    parts.pickupTimer = Math.max(0, parts.pickupTimer - dt);
 
     if (moonSurface.scraps.inventoryOpen) return;
 
@@ -216,9 +235,13 @@ export function attachPartsSystem(moonSurface) {
         collectPart(part);
       }
     }
-
-    parts.pickupTimer = Math.max(0, parts.pickupTimer - dt);
   };
+
+  // Replace the modules lying on the Moon with a new batch (each new day).
+  // Installed modules and the module inventory are kept.
+  function respawn() {
+    parts.items = createParts();
+  }
 
   // Draw actual module images.
   const originalDrawWorld =
@@ -343,6 +366,7 @@ export function attachPartsSystem(moonSurface) {
     getStats,
     getParts: () => parts,
     getInstalled: () => parts.installed,
-    getNearestUncollected
+    getNearestUncollected,
+    respawn
   };
 }

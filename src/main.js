@@ -9,6 +9,7 @@ import { loadAssets } from './assets.js';
 import { Survival } from './survival.js';
 import { attachPartsSystem } from './partsSystem.js';
 import { readSaves, writeSave, removeSave, applySnapshot } from './saveSystem.js';
+import { isTypingTarget } from './input.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -42,6 +43,15 @@ let sleepConfirmationOpen = false;
 let sleeping = false;
 let sleepTimer = 0;
 let forcedSleep = false;
+let modeBeforeSleep = 'walking';
+
+// Shown once each time the fuel runs out while the player can still pay.
+let fuelWarningShown = false;
+
+// Ship computer prices.
+const FUEL_PRICE = 30;
+const HULL_REPAIR_PRICE = 40;
+const HULL_REPAIR_AMOUNT = 20;
 
 let launchConfirmationOpen = false;
 let launchSelection = 0;
@@ -60,6 +70,8 @@ const collisionCooldowns = new Map();
 const heldKeys = new Set();
 
 window.addEventListener('keydown', event => {
+  if (isTypingTarget(event)) return;
+
   heldKeys.add(event.key.toLowerCase());
 });
 
@@ -509,6 +521,19 @@ function renderComputer() {
             PURCHASE OXYGEN
           </button>
         </div>
+
+        <div class="computer-item">
+          <span style="color:#c66c60">HULL REPAIR</span>
+          <strong>${Math.round(hull)} / ${hullMax}</strong>
+          <small>+${HULL_REPAIR_AMOUNT} HULL · ${HULL_REPAIR_PRICE} CREDITS</small>
+          <button
+            id="buy-repair"
+            class="computer-button"
+            ${hull >= hullMax || credits < HULL_REPAIR_PRICE ? 'disabled' : ''}
+          >
+            REPAIR HULL
+          </button>
+        </div>
       </div>
 
       <div style="
@@ -613,6 +638,7 @@ function renderComputer() {
   const sellAllButton = computerScreen.querySelector('#computer-sell-all');
   const buyFuelButton = computerScreen.querySelector('#buy-fuel');
   const buyOxygenButton = computerScreen.querySelector('#buy-oxygen');
+  const buyRepairButton = computerScreen.querySelector('#buy-repair');
 
   if (sellButton) {
     sellButton.addEventListener('click', () => {
@@ -664,6 +690,18 @@ function renderComputer() {
       }
     });
   }
+
+  if (buyRepairButton) {
+    buyRepairButton.addEventListener('click', () => {
+      if (hull >= hullMax || scraps.credits < HULL_REPAIR_PRICE) return;
+
+      scraps.credits -= HULL_REPAIR_PRICE;
+      hull = Math.min(hullMax, hull + HULL_REPAIR_AMOUNT);
+
+      updateHull();
+      renderComputer();
+    });
+  }
 }
 
 // HULL SYSTEM
@@ -680,7 +718,11 @@ function updateHull() {
   const hullValue = document.querySelector('#hull-value');
   const hullMeter = document.querySelector('#hull-meter');
 
-  if (hullValue) hullValue.textContent = Math.round(hull);
+  // The HUD label next to this number is "%", so show a percentage.
+  if (hullValue) {
+    hullValue.textContent = Math.round(hull / hullMax * 100);
+    hullValue.style.color = hull <= hullMax * 0.3 ? '#e45d4c' : '';
+  }
 
   if (hullMeter) {
     hullMeter.style.width =
@@ -724,12 +766,10 @@ function updateModuleEffects(adjustHull = true) {
     assets[`ship_space_${rarity}`] ||
     assets.ship_space_common;
 
-  moonSurface.assets.ship_moon =
+  // The landed ship on the Moon uses the matching "closed" sprite.
+  moonSurface.shipSprite =
     assets[`ship_moon_${rarity}`] ||
     assets.ship_moon_common;
-
-  
-
 
   updateHull();
 }
@@ -794,6 +834,14 @@ function beginSleep(isForced = false) {
 
   closeSleepConfirmation();
 
+  // Forced sleep (2 AM) can happen while a menu is open. Close them.
+  closeLaunchConfirmation();
+  closeComputer();
+  moonSurface.scraps.closeInventory();
+
+  // Remember where the player was, so they wake up in the same place.
+  modeBeforeSleep = gameMode;
+
   sleeping = true;
   forcedSleep = isForced;
   sleepTimer = 3.5;
@@ -824,8 +872,27 @@ function finishSleep() {
   updateClockDisplay();
   sleepScreen.style.display = 'none';
 
-  gameMode = 'walking';
-  onFoot.enter();
+  // Wake up where the player fell asleep.
+  gameMode = modeBeforeSleep;
+
+  if (gameMode === 'walking') {
+    onFoot.enter();
+  } else if (gameMode === 'moon') {
+    moonSurface.clearKeys();
+  }
+
+  onFoot.clearKeys();
+  heldKeys.clear();
+
+  // A new day: fresh scrap and modules appear on the Moon.
+  moonSurface.scraps.respawn();
+  partsSystem.respawn();
+
+  showTransmission(
+    'LONG-RANGE SCAN COMPLETE\n' +
+    'NEW SALVAGE DETECTED ON THE MOON',
+    '#8bd0b7'
+  );
 
   console.log('Good morning. It is 7 AM.');
 }
@@ -861,6 +928,8 @@ window.addEventListener('keydown', (event) => {
     beginSleep(false);
   } else if (key === 'n' || key === 'escape') {
     event.preventDefault();
+    // Stop the pause-menu Escape handler from also running.
+    event.stopImmediatePropagation();
     closeSleepConfirmation();
   }
 });
@@ -983,6 +1052,8 @@ window.addEventListener('keydown', (event) => {
     confirmLaunch();
   } else if (key === 'n' || key === 'escape') {
     event.preventDefault();
+    // Stop the pause-menu Escape handler from also running.
+    event.stopImmediatePropagation();
     closeLaunchConfirmation();
   }
 });
@@ -990,6 +1061,8 @@ window.addEventListener('keydown', (event) => {
 // GLOBAL INVENTORY KEY
 window.addEventListener('keydown', (event) => {
   if (
+    paused ||
+    isTypingTarget(event) ||
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
@@ -1011,6 +1084,8 @@ window.addEventListener('keydown', (event) => {
     moonSurface.scraps.inventoryOpen
   ) {
     event.preventDefault();
+    // Stop the pause-menu Escape handler from also running.
+    event.stopImmediatePropagation();
     moonSurface.scraps.closeInventory();
     onFoot.clearKeys();
     moonSurface.clearKeys();
@@ -1022,6 +1097,8 @@ window.addEventListener('keydown', (event) => {
   if (
     event.code !== 'KeyQ' ||
     event.repeat ||
+    paused ||
+    isTypingTarget(event) ||
     gameMode !== 'moon' ||
     gameOver ||
     sleeping ||
@@ -1052,6 +1129,8 @@ window.addEventListener('keydown', (event) => {
   if (
     event.code !== 'KeyM' ||
     event.repeat ||
+    paused ||
+    isTypingTarget(event) ||
     moonSurface.scraps.inventoryOpen ||
     computerOpen ||
     gameOver ||
@@ -1076,6 +1155,8 @@ window.addEventListener('keydown', (event) => {
   if (
     event.code !== 'KeyE' ||
     event.repeat ||
+    paused ||
+    isTypingTarget(event) ||
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
@@ -1311,7 +1392,6 @@ function getNearestDetectorTargets() {
   };
 }
 // SURVIVAL EQUIPMENT DISPLAY
-// SURVIVAL EQUIPMENT DISPLAY
 function drawSurvivalEquipment(context) {
   // METAL DETECTOR
   if (gameMode === 'moon' && survival.detectorOn) {
@@ -1463,13 +1543,12 @@ function handleImpact() {
 
   console.log(`COLLISION! -${damage}% HULL. Remaining: ${hull}%`);
 }
-function showEmergencyFuelMessage() {
+// Shows a short message box in the middle-top of the screen.
+// Use "\n" in the text for new lines.
+function showTransmission(text, color = '#77b9d4') {
   const message = document.createElement('div');
 
-  message.textContent =
-    'NASA EMERGENCY TRANSMISSION\n' +
-    'EMERGENCY FUEL DEPLOYED\n' +
-    'ONE-TIME REFILL GRANTED';
+  message.textContent = text;
 
   message.style.cssText = `
     position:fixed;
@@ -1479,8 +1558,8 @@ function showEmergencyFuelMessage() {
     z-index:150;
     padding:20px 28px;
     background:rgba(10,18,22,.96);
-    border:1px solid #77b9d4;
-    color:#bde9f5;
+    border:1px solid ${color};
+    color:${color};
     font:bold 14px monospace;
     letter-spacing:2px;
     line-height:2;
@@ -1492,9 +1571,45 @@ function showEmergencyFuelMessage() {
   setTimeout(() => message.remove(), 6500);
 }
 
-function handleFuelDepletion() {
-  if (survival.fuel > 0 || gameOver) return;
+function showEmergencyFuelMessage() {
+  showTransmission(
+    'NASA EMERGENCY TRANSMISSION\n' +
+    'EMERGENCY FUEL DEPLOYED\n' +
+    'ONE-TIME REFILL GRANTED',
+    '#bde9f5'
+  );
+}
 
+function handleFuelDepletion() {
+  if (gameOver) return;
+
+  if (survival.fuel > 0) {
+    fuelWarningShown = false;
+    return;
+  }
+
+  // Credits plus the value of unsold scrap.
+  const scraps = moonSurface.scraps;
+  const money = (scraps.credits ?? 0) + scraps.getInventoryValue();
+
+  // 1. The player can still pay for fuel: tell them how, no game over.
+  if (money >= FUEL_PRICE) {
+    if (!fuelWarningShown) {
+      fuelWarningShown = true;
+
+      showTransmission(
+        'FUEL DEPLETED\n' +
+        'PRESS E TO ENTER THE SHIP\n' +
+        'BUY FUEL AT THE COMPUTER',
+        '#d5b66b'
+      );
+    }
+
+    return;
+  }
+
+  // 2. Not enough money: NASA sends ONE free refill.
+  // 3. Already used: game over.
   if (survival.emergencyFuelUsed) {
     gameOver = true;
 
@@ -1510,8 +1625,6 @@ function handleFuelDepletion() {
     gameOverScreen.style.display = 'flex';
     return;
   }
-
-  if ((moonSurface.scraps.credits ?? 0) > 0) return;
 
   survival.emergencyFuelUsed = true;
   survival.fuel = survival.maxFuel;
@@ -1620,8 +1733,10 @@ function createSnapshot() {
   return {
     version: 1,
     game: 'Project: Nasareth',
-    gameMode,
-    gameMinutes,
+
+    // Saving during sleep stores the state as if the player already woke up.
+    gameMode: sleeping ? modeBeforeSleep : gameMode,
+    gameMinutes: sleeping ? 7 * 60 : gameMinutes,
     hull,
     landedOnMoon,
 
@@ -1705,9 +1820,14 @@ function loadPendingSave() {
       moonSurface.parts = liveParts;
     }
 
-    gameMode = ['driving', 'walking', 'moon'].includes(save.gameMode)
-      ? save.gameMode
-      : 'driving';
+    // Older saves could store 'sleeping'; load those inside the ship.
+    if (save.gameMode === 'sleeping') {
+      gameMode = 'walking';
+    } else {
+      gameMode = ['driving', 'walking', 'moon'].includes(save.gameMode)
+        ? save.gameMode
+        : 'driving';
+    }
 
     gameMinutes = Number.isFinite(save.gameMinutes)
       ? save.gameMinutes

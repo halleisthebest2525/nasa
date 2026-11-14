@@ -1,3 +1,5 @@
+import { isTypingTarget } from './input.js';
+
 const ROOM_WIDTH = 1100;
 const ROOM_HEIGHT = 760;
 
@@ -40,6 +42,8 @@ export class OnFoot {
     this.moving = false;
 
     window.addEventListener('keydown', (event) => {
+      if (isTypingTarget(event)) return;
+
       const key = event.key.toLowerCase();
 
       if ([

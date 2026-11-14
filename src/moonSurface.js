@@ -1,4 +1,5 @@
 import { ScrapSystem } from './scraps.js';
+import { isTypingTarget } from './input.js';
 
 const SURFACE_RADIUS = 4800;
 const WALK_SPEED = 190;
@@ -35,6 +36,8 @@ export class MoonSurface {
     this.generateTerrain();
 
     window.addEventListener('keydown', (event) => {
+      if (isTypingTarget(event)) return;
+
       const key = event.key.toLowerCase();
 
       if ([
@@ -442,7 +445,11 @@ const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1);
     ctx.save();
     ctx.translate(x, y);
 
-    const sprite = this.assets.ship_moon_common || this.assets.ship_space_common;
+    // shipSprite is set by main.js whenever installed modules change.
+    const sprite =
+      this.shipSprite ||
+      this.assets.ship_moon_common ||
+      this.assets.ship_space_common;
 
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
       const maxWidth = 145;

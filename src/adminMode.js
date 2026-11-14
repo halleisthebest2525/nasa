@@ -7,7 +7,8 @@
 export const adminFlags = {
   god: false,        // no damage, full fuel/oxygen/stamina/health
   skipGauges: false, // every launch / landing gauge succeeds instantly
-  fast: false        // ship + walking speed x3
+  fast: false,       // ship + walking speed x3
+  autoCollect: false // every module on a planet is collected as soon as you land
 };
 
 // Read by gaugeChallenge.js.
@@ -30,6 +31,7 @@ export function createAdminMode(game) {
     ['toggle', 'god', 'GOD MODE'],
     ['toggle', 'skipGauges', 'SKIP LAUNCH/LANDING GAUGES'],
     ['toggle', 'fast', 'FAST MOVE (x3)'],
+    ['toggle', 'autoCollect', 'AUTO-COLLECT ALL MODULES'],
     ['+1000 CREDITS', () => game.addCredits(1000)],
     ['FULL RESTORE (hull/fuel/O2/HP)', () => game.restoreAll()],
     ['GIVE ALL STAR MAPS', () => game.giveAllMaps()],

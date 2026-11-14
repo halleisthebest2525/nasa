@@ -2591,14 +2591,8 @@ createAdminMode({
   },
   collectAllModules() {
     if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
-    const left = partsSystem.getParts().items.filter(item => !item.collected);
-    if (!left.length) return 'NO MODULES LEFT';
-    // Step onto each module over a few frames so the normal pickup code runs.
-    left.forEach((part, index) => setTimeout(() => {
-      moonSurface.x = part.x;
-      moonSurface.y = part.y + 20;
-    }, index * 120));
-    return `COLLECTING ${left.length} MODULES...`;
+    const count = partsSystem.collectAll();
+    return count ? `COLLECTED ${count} MODULES` : 'NO MODULES LEFT';
   },
   gotoChest() {
     if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
@@ -2778,6 +2772,11 @@ function frame(time) {
     survival.shipOxygen = 100;
     survival.stamina = 100;
     survival.staminaExhausted = false;
+  }
+
+  // ADMIN MODE (temporary): auto-collect every module on the planet.
+  if (adminFlags.autoCollect && gameMode === 'moon' && !gameOver) {
+    partsSystem.collectAll();
   }
 
   // The world is frozen while the launch / landing gauge is on screen.

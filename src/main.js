@@ -20,6 +20,7 @@ import { PLANETS } from './planets.js';
 import { createMarsMonsters } from './marsMonsters.js';
 import { createEarthBase } from './earthBase.js';
 import { createPlanetLog } from './planetLog.js';
+import { adminFlags, createAdminMode } from './adminMode.js'; // TEMPORARY
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -2555,6 +2556,72 @@ window.NasarethGame = {
   }
 };
 
+// ADMIN MODE (temporary) - remove before release.
+createAdminMode({
+  addCredits(amount) {
+    moonSurface.scraps.credits = (moonSurface.scraps.credits ?? 0) + amount;
+    return `CREDITS: ${moonSurface.scraps.credits}`;
+  },
+  restoreAll() {
+    hull = hullMax;
+    updateHull();
+    Object.assign(survival, { health: 100, fuel: survival.maxFuel, oxygen: 100, shipOxygen: 100, stamina: 100, staminaExhausted: false });
+  },
+  giveAllMaps() {
+    const saved = chestQuest.save();
+    saved.chestDetector = true;
+    saved.maps = { ...saved.maps, mars: true, europa: true };
+    chestQuest.load(saved);
+    return 'MARS + EUROPA MAPS GIVEN';
+  },
+  maxGear() {
+    survival.flashlightLevel = FLASHLIGHT_PRICES.length;
+    survival.flashlightOn = true;
+    applyFlashlight();
+    survival.weaponLevel = WEAPON_MAX_LEVEL;
+    survival.medkits = MEDKIT_MAX;
+  },
+  gotoNextModule() {
+    if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
+    const part = partsSystem.getParts().items.find(item => !item.collected);
+    if (!part) return 'NO MODULES LEFT';
+    moonSurface.x = part.x;
+    moonSurface.y = part.y + 20;
+    return 'TELEPORTED (module picks up automatically)';
+  },
+  collectAllModules() {
+    if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
+    const left = partsSystem.getParts().items.filter(item => !item.collected);
+    if (!left.length) return 'NO MODULES LEFT';
+    // Step onto each module over a few frames so the normal pickup code runs.
+    left.forEach((part, index) => setTimeout(() => {
+      moonSurface.x = part.x;
+      moonSurface.y = part.y + 20;
+    }, index * 120));
+    return `COLLECTING ${left.length} MODULES...`;
+  },
+  gotoChest() {
+    if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
+    const chest = chestQuest.getState().chests[landedPlanet];
+    if (!chest) return 'NO CHEST YET (collect all modules first)';
+    moonSurface.x = chest.x;
+    moonSurface.y = chest.y;
+    return 'TELEPORTED TO CHEST';
+  },
+  flyTo(id) {
+    if (gameMode !== 'driving') return 'MUST BE FLYING IN SPACE (leave the ship/planet first)';
+    const body = world[id];
+    ship.x = body.x;
+    ship.y = body.y - body.radius - 60;
+    ship.vx = 0;
+    ship.vy = 0;
+    return `AT ${id.toUpperCase()} - PRESS E TO LAND`;
+  },
+  setTime(minutes) {
+    gameMinutes = minutes;
+  }
+});
+
 window.dispatchEvent(new CustomEvent('nasareth:game-ready'));
 
 // PLANET LOG KEY (P) - Esc also closes it.
@@ -2702,6 +2769,17 @@ function frame(time) {
 
   previous = time;
 
+  // ADMIN MODE (temporary): god mode keeps everything full.
+  if (adminFlags.god && !gameOver) {
+    hull = hullMax;
+    survival.health = 100;
+    survival.fuel = survival.maxFuel;
+    survival.oxygen = 100;
+    survival.shipOxygen = 100;
+    survival.stamina = 100;
+    survival.staminaExhausted = false;
+  }
+
   // The world is frozen while the launch / landing gauge is on screen.
   if (!gameOver && !paused && !isGaugeChallengeActive() && !earthBase.isOpen() && !planetLog.isOpen()) {
     if (sleeping) {
@@ -2769,7 +2847,11 @@ function frame(time) {
           ship.update(
             dt,
             survival.fuel > 0,
-            moduleStats
+            adminFlags.fast
+              ? { ...moduleStats,
+                  accelerationMultiplier: (moduleStats.accelerationMultiplier || 1) * 3,
+                  maxSpeedMultiplier: (moduleStats.maxSpeedMultiplier || 1) * 3 }
+              : moduleStats
           );
 
           checkCollisions();

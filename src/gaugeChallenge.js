@@ -263,6 +263,12 @@ export function runGaugeChallenge({
   onAttempt = () => true
 } = {}) {
   return new Promise(resolve => {
+    // ADMIN MODE (temporary): skip the minigame, instant success.
+    if (window.__NASA_ADMIN__?.skipGauges) {
+      resolve({ success: true, aborted: false, successes: required, attempts: required });
+      return;
+    }
+
     active = {
       required,
       maxAttempts,

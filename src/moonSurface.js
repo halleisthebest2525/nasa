@@ -4,6 +4,12 @@ import { isTypingTarget } from './input.js';
 const SURFACE_RADIUS = 4800;
 const WALK_SPEED = 190;
 const RUN_MULTIPLIER = 1.2;
+
+// Out of stamina: the player is exhausted and moves much slower.
+const EXHAUSTED_MULTIPLIER = 0.45;
+
+// How far the player can see around themselves without a flashlight.
+const AMBIENT_LIGHT_RADIUS = 105;
 const SHIP_DISTANCE = 155;
 
 const VISIBILITY_RADIUS = 50;
@@ -139,7 +145,7 @@ export class MoonSurface {
     ) <= SHIP_DISTANCE;
   }
 
-  update(dt, canRun = true) {
+  update(dt, canRun = true, exhausted = false) {
     this.scraps.update(this.x, this.y, dt);
 
     if (this.scraps.inventoryOpen) {
@@ -165,7 +171,12 @@ export class MoonSurface {
 
       
       const running = this.keys.has('shift') && canRun;
-const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1);
+
+      let multiplier = 1;
+      if (exhausted) multiplier = EXHAUSTED_MULTIPLIER;
+      else if (running) multiplier = RUN_MULTIPLIER;
+
+      const speed = WALK_SPEED * multiplier;
 
       this.x += dx * speed * dt;
       this.y += dy * speed * dt;
@@ -589,9 +600,16 @@ const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1);
     ctx.restore();
   }
 
+  // Darkness around the player. With the flashlight on, a beam of light
+  // also points the way the player is facing.
+  // this.flashlight is set by main.js: { length, halfAngle } or null (off).
   drawVisibility(ctx, width, height) {
-    // visibilityRadius is set by main.js from the flashlight level.
-    const radius = this.visibilityRadius || 105;
+    if (this.flashlight) {
+      this.drawFlashlightDarkness(ctx, width, height, this.flashlight);
+      return;
+    }
+
+    const radius = AMBIENT_LIGHT_RADIUS;
     const fade = 65;
 
     const centerX = width / 2;
@@ -615,6 +633,107 @@ const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1);
     ctx.save();
     ctx.fillStyle = darkness;
     ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  }
+
+  drawFlashlightDarkness(ctx, width, height, beam) {
+    // A separate darkness layer: fill it black, then "cut out" the light.
+    if (!this.darknessLayer) {
+      this.darknessLayer = document.createElement('canvas');
+      this.darknessCtx = this.darknessLayer.getContext('2d');
+    }
+
+    const layer = this.darknessLayer;
+    const dctx = this.darknessCtx;
+
+    if (layer.width !== ctx.canvas.width || layer.height !== ctx.canvas.height) {
+      layer.width = ctx.canvas.width;
+      layer.height = ctx.canvas.height;
+    }
+
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    dctx.setTransform(1, 0, 0, 1, 0, 0);
+    dctx.globalCompositeOperation = 'source-over';
+    dctx.fillStyle = '#000';
+    dctx.fillRect(0, 0, layer.width, layer.height);
+
+    // Same coordinates as the game (CSS pixels).
+    dctx.setTransform(ctx.getTransform());
+    dctx.globalCompositeOperation = 'destination-out';
+
+    // 1. Small glow around the player (same as without a flashlight).
+    const radius = AMBIENT_LIGHT_RADIUS;
+    const glow = dctx.createRadialGradient(
+      centerX, centerY, radius * 0.65,
+      centerX, centerY, radius + 65
+    );
+
+    glow.addColorStop(0, 'rgba(0,0,0,1)');
+    glow.addColorStop(0.65, 'rgba(0,0,0,0.98)');
+    glow.addColorStop(0.82, 'rgba(0,0,0,0.65)');
+    glow.addColorStop(0.94, 'rgba(0,0,0,0.18)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+
+    dctx.fillStyle = glow;
+    dctx.fillRect(0, 0, width, height);
+
+    // 2. The beam: three nested cones, so the edges are soft.
+    const cones = [
+      [1, 0.35],
+      [0.7, 0.45],
+      [0.4, 0.5]
+    ];
+
+    for (const [angleScale, strength] of cones) {
+      const half = beam.halfAngle * angleScale;
+
+      const light = dctx.createRadialGradient(
+        centerX, centerY, 0,
+        centerX, centerY, beam.length
+      );
+
+      light.addColorStop(0, `rgba(0,0,0,${strength})`);
+      light.addColorStop(0.7, `rgba(0,0,0,${strength})`);
+      light.addColorStop(1, 'rgba(0,0,0,0)');
+
+      dctx.fillStyle = light;
+      dctx.beginPath();
+      dctx.moveTo(centerX, centerY);
+      dctx.arc(
+        centerX,
+        centerY,
+        beam.length,
+        this.angle - half,
+        this.angle + half
+      );
+      dctx.closePath();
+      dctx.fill();
+    }
+
+    dctx.globalCompositeOperation = 'source-over';
+
+    // Put the darkness over the game.
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(layer, 0, 0);
+    ctx.restore();
+
+    // Very faint warm tint inside the beam.
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 236, 190, 0.05)';
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.arc(
+      centerX,
+      centerY,
+      beam.length,
+      this.angle - beam.halfAngle * 0.7,
+      this.angle + beam.halfAngle * 0.7
+    );
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
   }
 
@@ -763,6 +882,7 @@ const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1);
       'SHIFT  RUN',
       'E  ENTER SHIP',
       'B  INVENTORY',
+      'F  FLASHLIGHT',
       'Q  METAL DETECTOR',
       'M  MAP'
     ];

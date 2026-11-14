@@ -6,6 +6,9 @@ const ROOM_HEIGHT = 760;
 const WALK_SPEED = 210;
 const RUN_MULTIPLIER = 1.2;
 
+// Out of stamina: the player is exhausted and moves much slower.
+const EXHAUSTED_MULTIPLIER = 0.45;
+
 const SEAT_INTERACTION_DISTANCE = 95;
 const BED_INTERACTION_DISTANCE = 105;
 const EXIT_INTERACTION_DISTANCE = 105;
@@ -80,7 +83,7 @@ export class OnFoot {
     this.clearKeys();
   }
 
-  update(dt, canRun = true) {
+  update(dt, canRun = true, exhausted = false) {
     let dx = 0;
     let dy = 0;
 
@@ -99,7 +102,12 @@ export class OnFoot {
 
       
       const running = this.keys.has('shift') && canRun;
-      const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1);
+
+      let multiplier = 1;
+      if (exhausted) multiplier = EXHAUSTED_MULTIPLIER;
+      else if (running) multiplier = RUN_MULTIPLIER;
+
+      const speed = WALK_SPEED * multiplier;
       this.x += dx * speed * dt;
       this.y += dy * speed * dt;
 

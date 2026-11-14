@@ -17,6 +17,7 @@ export class Survival {
 
     // 0 = no flashlight. Bought and upgraded at the ship computer.
     this.flashlightLevel = 0;
+    this.flashlightOn = false;
   }
 
   updateFuel(dt, moving, boosting, modules = {}) {

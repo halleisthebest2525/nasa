@@ -41,6 +41,8 @@ export class Ship {
       ? c.acceleration * 1.65 * accelerationMultiplier
       : c.acceleration * accelerationMultiplier;
 
+    const speedBefore = Math.hypot(this.vx, this.vy);
+
     if (forward) {
       this.vx += Math.cos(this.angle) * power * dt;
       this.vy += Math.sin(this.angle) * power * dt;
@@ -51,30 +53,42 @@ export class Ship {
       this.vy -= Math.sin(this.angle) * c.reverse * dt;
     }
 
+    // SPACE = retro thrusters (brake). Otherwise there is NO air
+    // resistance in space: the ship keeps drifting at the same speed.
     if (isDown(' ')) {
       this.vx *= Math.pow(0.04, dt);
       this.vy *= Math.pow(0.04, dt);
-    } else {
-      this.vx *= Math.pow(c.drag, dt * 60);
-      this.vy *= Math.pow(c.drag, dt * 60);
     }
 
-    const max = (
+    // The engine can only push the ship up to its top speed
+    // (higher while boosting). Thrust never adds speed above that,
+    // but the ship keeps any speed it already has (momentum).
+    const engineMax = (
       this.boosting ? c.boostSpeed : c.maxSpeed
     ) * speedMultiplier;
 
+    const absoluteMax = c.boostSpeed * speedMultiplier;
+
     const speed = Math.hypot(this.vx, this.vy);
 
-    if (speed > max) {
-      this.vx = this.vx / speed * max;
-      this.vy = this.vy / speed * max;
+    if (speed > engineMax && speed > speedBefore) {
+      const limit = Math.min(absoluteMax, Math.max(engineMax, speedBefore));
+
+      this.vx = this.vx / speed * limit;
+      this.vy = this.vy / speed * limit;
     }
 
     this.x += this.vx * dt;
     this.y += this.vy * dt;
 
-    this.x = clamp(this.x, -CONFIG.worldSize / 2, CONFIG.worldSize / 2);
-    this.y = clamp(this.y, -CONFIG.worldSize / 2, CONFIG.worldSize / 2);
+    // World edge: stop the movement that pushes into the edge.
+    const half = CONFIG.worldSize / 2;
+
+    if (Math.abs(this.x) > half) this.vx = 0;
+    if (Math.abs(this.y) > half) this.vy = 0;
+
+    this.x = clamp(this.x, -half, half);
+    this.y = clamp(this.y, -half, half);
   }
 
   get speed() {

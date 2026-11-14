@@ -44,21 +44,23 @@ function randomRange(min, max) {
   return min + Math.random() * (max - min);
 }
 
-// Drop chances: common 45%, rare 30%, epic 15%, mythic 7%, legendary 3%.
+// The Moon only has common, rare and epic modules.
+// Drop chances: common 70%, rare 27%, epic 3%.
 function rollRarity() {
   const roll = Math.random() * 100;
 
-  if (roll >= 97) return 'legendary';
-  if (roll >= 90) return 'mythic';
-  if (roll >= 75) return 'epic';
-  if (roll >= 45) return 'rare';
+  if (roll >= 97) return 'epic';
+  if (roll >= 70) return 'rare';
   return 'common';
 }
 
-// Creates a fresh batch of 6-8 modules scattered over the Moon.
+// Exactly 2 modules lie on the Moon at a time.
+const PARTS_PER_MOON = 2;
+
+// Creates a fresh batch of modules scattered over the Moon.
 function createParts() {
   const parts = [];
-  const count = 6 + Math.floor(Math.random() * 3);
+  const count = PARTS_PER_MOON;
   const batch = Date.now().toString(36);
 
   for (let i = 0; i < count; i++) {
@@ -243,6 +245,23 @@ export function attachPartsSystem(moonSurface) {
     parts.items = createParts();
   }
 
+  // Older saves could have more than 2 modules on the Moon, or mythic /
+  // legendary ones. If so, replace them with a normal batch.
+  function fixMoonItems() {
+    const MOON_RARITIES = ['common', 'rare', 'epic'];
+
+    const invalid =
+      !Array.isArray(parts.items) ||
+      parts.items.length > PARTS_PER_MOON ||
+      parts.items.some(part => !MOON_RARITIES.includes(part.rarity));
+
+    if (invalid) {
+      parts.items = createParts();
+    }
+  }
+
+  fixMoonItems();
+
   // Draw actual module images.
   const originalDrawWorld =
     moonSurface.scraps.drawWorld.bind(moonSurface.scraps);
@@ -366,8 +385,9 @@ export function attachPartsSystem(moonSurface) {
   // One row per module slot: icon, name, installed rarity, collected count.
   const MODULE_ROW_HEIGHT = 27;
 
-  moonSurface.scraps.inventoryExtension = {
-    height: 5 + TYPES.length * MODULE_ROW_HEIGHT,
+  const moduleSection = {
+    // Title (22px) + one row per module type.
+    height: 22 + TYPES.length * MODULE_ROW_HEIGHT,
 
     draw(ctx, x, y, panelWidth) {
       const stats = getStats();
@@ -443,11 +463,17 @@ export function attachPartsSystem(moonSurface) {
     }
   };
 
+  // Add the module section to the B inventory.
+  moonSurface.scraps.inventorySections =
+    moonSurface.scraps.inventorySections || [];
+  moonSurface.scraps.inventorySections.push(moduleSection);
+
   return {
     getStats,
     getParts: () => parts,
     getInstalled: () => parts.installed,
     getNearestUncollected,
-    respawn
+    respawn,
+    fixMoonItems
   };
 }

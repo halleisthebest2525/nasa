@@ -236,13 +236,19 @@ export class ScrapSystem {
   drawInventory(ctx, width, height) {
     if (!this.inventoryOpen) return;
 
-    // Other systems (ship modules) can add a section below the scrap rows
-    // by setting this.inventoryExtension = { height, draw(ctx, x, y, w) }.
-    const extension = this.inventoryExtension;
-    const extraHeight = extension ? extension.height : 0;
+    // Other systems (ship modules, stats) add sections below the scrap rows:
+    // this.inventorySections = [{ height, draw(ctx, x, y, w) }, ...]
+    const sections = this.inventorySections || [];
+    const SECTION_GAP = 14;
+    const SECTIONS_TOP = 236;
 
-    const panelWidth = Math.min(520, width - 36);
-    const panelHeight = 390 + extraHeight;
+    const sectionsHeight = sections.reduce(
+      (total, section) => total + section.height + SECTION_GAP,
+      0
+    );
+
+    const panelWidth = Math.min(560, width - 36);
+    const panelHeight = SECTIONS_TOP + sectionsHeight + 30;
     const x = (width - panelWidth) / 2;
     // Keep the panel below the clock / hull boxes at the top when it fits.
     const topClear = 155;
@@ -278,48 +284,53 @@ export class ScrapSystem {
     ];
 
     rows.forEach(([rarity, label], index) => {
-      const rowY = y + 90 + index * 76;
+      const rowY = y + 80 + index * 46;
       const color = RARITIES[rarity].color;
 
       ctx.fillStyle = '#222a26';
-      ctx.fillRect(x + 25, rowY - 25, panelWidth - 50, 58);
+      ctx.fillRect(x + 25, rowY - 17, panelWidth - 50, 38);
       ctx.strokeStyle = '#424b43';
-      ctx.strokeRect(x + 25, rowY - 25, panelWidth - 50, 58);
+      ctx.strokeRect(x + 25, rowY - 17, panelWidth - 50, 38);
 
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(x + 53, rowY + 4, 9, 0, Math.PI * 2);
+      ctx.arc(x + 50, rowY + 2, 8, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.textAlign = 'left';
       ctx.fillStyle = color;
       ctx.font = 'bold 13px monospace';
-      ctx.fillText(label, x + 78, rowY + 9);
+      ctx.fillText(label, x + 72, rowY + 7);
 
       ctx.textAlign = 'right';
       ctx.fillStyle = '#e0e1d8';
-      ctx.font = 'bold 17px monospace';
-      ctx.fillText(`x ${counts[rarity]}`, x + panelWidth - 48, rowY + 10);
+      ctx.font = 'bold 16px monospace';
+      ctx.fillText(`x ${counts[rarity]}`, x + panelWidth - 45, rowY + 8);
     });
 
-    if (extension) {
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#e0c78e';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(
+      `SELL VALUE: ${this.getInventoryValue()} CREDITS`,
+      x + panelWidth - 28,
+      y + 214
+    );
+
+    let sectionY = y + SECTIONS_TOP;
+
+    for (const section of sections) {
       ctx.save();
-      extension.draw(ctx, x, y + 300, panelWidth);
+      section.draw(ctx, x, sectionY, panelWidth);
       ctx.restore();
+
+      sectionY += section.height + SECTION_GAP;
     }
 
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#e0c78e';
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText(
-      `ESTIMATED SELL VALUE: ${this.getInventoryValue()} CREDITS`,
-      width / 2,
-      y + panelHeight - 45
-    );
-
     ctx.fillStyle = '#858b7e';
     ctx.font = '11px monospace';
-    ctx.fillText('PRESS B OR ESC TO CLOSE', width / 2, y + panelHeight - 20);
+    ctx.fillText('PRESS B OR ESC TO CLOSE', width / 2, y + panelHeight - 14);
 
     ctx.restore();
   }

@@ -12,6 +12,7 @@ import { readSaves, writeSave, removeSave, applySnapshot } from './saveSystem.js
 import { isTypingTarget } from './input.js';
 import { createSpaceBackground } from './spaceBackground.js';
 import { runGaugeChallenge, isGaugeChallengeActive } from './gaugeChallenge.js';
+import { createStatsSection } from './inventoryStats.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -27,6 +28,13 @@ const survival = new Survival();
 
 const partsSystem = attachPartsSystem(moonSurface);
 const spaceBackground = createSpaceBackground(assets);
+
+// Ship + player stats in the B inventory (below the ship modules).
+moonSurface.scraps.inventorySections.push(createStatsSection({
+  survival,
+  getModuleStats: () => partsSystem.getStats(),
+  getHull: () => ({ hull, hullMax })
+}));
 let moduleStats = partsSystem.getStats();
 
 let hullMax = moduleStats.maxHull;
@@ -60,9 +68,12 @@ const HULL_REPAIR_AMOUNT = 20;
 const FLASHLIGHT_PRICES = [60, 120, 200, 320];
 const FLASHLIGHT_MAX_LEVEL = FLASHLIGHT_PRICES.length;
 
-// Moon view radius: 105 with no flashlight, +45 per level (max 285).
-const MOON_VIEW_BASE = 105;
-const MOON_VIEW_PER_LEVEL = 45;
+// Flashlight beam on the Moon. Each level makes it longer and wider.
+// Level 1: 290 long · Level 4: 470 long.
+const BEAM_BASE_LENGTH = 230;
+const BEAM_LENGTH_PER_LEVEL = 60;
+const BEAM_BASE_HALF_ANGLE = 0.30; // radians, each side of centre
+const BEAM_HALF_ANGLE_PER_LEVEL = 0.04;
 
 function applyFlashlight() {
   const level = Math.max(
@@ -71,8 +82,20 @@ function applyFlashlight() {
   );
 
   survival.flashlightLevel = level;
-  moonSurface.visibilityRadius =
-    MOON_VIEW_BASE + level * MOON_VIEW_PER_LEVEL;
+  survival.flashlightOn = Boolean(survival.flashlightOn) && level > 0;
+
+  moonSurface.flashlight = survival.flashlightOn
+    ? {
+      length: BEAM_BASE_LENGTH + level * BEAM_LENGTH_PER_LEVEL,
+      halfAngle: BEAM_BASE_HALF_ANGLE + level * BEAM_HALF_ANGLE_PER_LEVEL
+    }
+    : null;
+}
+
+// Short message at the top of the Moon screen.
+function showMoonMessage(text) {
+  moonSurface.scraps.pickupMessage = text;
+  moonSurface.scraps.pickupTimer = 2.2;
 }
 
 applyFlashlight();
@@ -572,8 +595,8 @@ function renderComputer() {
           <strong>LEVEL ${flashlightLevel} / ${FLASHLIGHT_MAX_LEVEL}</strong>
           <small>
             ${flashlightMaxed
-              ? 'MAXIMUM LEVEL · WIDEST MOON VIEW'
-              : `WIDER VIEW ON THE MOON · ${flashlightPrice} CREDITS`}
+              ? 'MAXIMUM LEVEL · LONGEST BEAM'
+              : `${flashlightLevel === 0 ? 'LIGHT BEAM ON THE MOON · F TO TOGGLE' : 'LONGER, WIDER BEAM'} · ${flashlightPrice} CREDITS`}
           </small>
           <button
             id="buy-flashlight"
@@ -761,6 +784,7 @@ function renderComputer() {
 
       scraps.credits -= flashlightPrice;
       survival.flashlightLevel += 1;
+      survival.flashlightOn = true; // Ready to use right away.
 
       applyFlashlight();
       renderComputer();
@@ -1177,6 +1201,33 @@ window.addEventListener('keydown', (event) => {
   survival.detectorLit = false;
 });
 
+// FLASHLIGHT KEY (Moon only)
+window.addEventListener('keydown', (event) => {
+  if (
+    event.code !== 'KeyF' ||
+    event.repeat ||
+    paused ||
+    isTypingTarget(event) ||
+    gameMode !== 'moon' ||
+    gameOver ||
+    sleeping ||
+    computerOpen ||
+    moonSurface.scraps.inventoryOpen ||
+    launchConfirmationOpen || isGaugeChallengeActive() ||
+    sleepConfirmationOpen
+  ) return;
+
+  if (survival.flashlightLevel <= 0) {
+    showMoonMessage('NO FLASHLIGHT · BUY ONE AT THE SHIP COMPUTER');
+    return;
+  }
+
+  survival.flashlightOn = !survival.flashlightOn;
+  applyFlashlight();
+
+  showMoonMessage(survival.flashlightOn ? 'FLASHLIGHT ON' : 'FLASHLIGHT OFF');
+});
+
 // COMPUTER CLOSE KEY
 window.addEventListener('keydown', (event) => {
   if (!computerOpen) return;
@@ -1265,7 +1316,8 @@ function startEarthLaunch() {
 
     // Lift-off: push the rocket away from Earth.
     ship.angle = -Math.PI / 2;
-    ship.vy = -130;
+    // No air resistance: the rocket keeps drifting until you steer or brake.
+    ship.vy = -90;
     heldKeys.clear();
 
     showTransmission(
@@ -1926,7 +1978,8 @@ function createSnapshot() {
       detectorOn: survival.detectorOn,
       detectorFlash: survival.detectorFlash,
       detectorLit: survival.detectorLit,
-      flashlightLevel: survival.flashlightLevel
+      flashlightLevel: survival.flashlightLevel,
+      flashlightOn: survival.flashlightOn
     },
     moon: {
       x: moonSurface.x,
@@ -1984,6 +2037,9 @@ function loadPendingSave() {
       Object.assign(liveParts, save.moon.parts);
 
       moonSurface.parts = liveParts;
+
+      // Max 2 modules on the Moon, epic at most (fixes older saves).
+      partsSystem.fixMoonItems();
     }
 
     // Older saves could store 'sleeping'; load those inside the ship.
@@ -2015,6 +2071,11 @@ function loadPendingSave() {
     updateModuleEffects(false);
 
     // Older saves have no flashlight; applyFlashlight() treats that as 0.
+    // Saves that bought one before the on/off switch existed: turn it on.
+    if (save.survival && save.survival.flashlightOn === undefined) {
+      survival.flashlightOn = survival.flashlightLevel > 0;
+    }
+
     applyFlashlight();
 
     updateClockDisplay();
@@ -2158,10 +2219,10 @@ function frame(time) {
 
           checkCollisions();
         } else if (gameMode === 'walking') {
-          onFoot.update(dt, survival.canRun());
+          onFoot.update(dt, survival.canRun(), survival.staminaExhausted);
           survival.updateStamina(dt, isRunning());
         } else if (gameMode === 'moon') {
-          moonSurface.update(dt, survival.canRun());
+          moonSurface.update(dt, survival.canRun(), survival.staminaExhausted);
 
           survival.updateMoon(dt, isRunning());
 

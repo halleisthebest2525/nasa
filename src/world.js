@@ -49,6 +49,23 @@ export class World {
       })
     );
 
+    // Mars: far away in the top-left (about 2x the Moon's distance).
+    // ~3 minutes at normal speed from Earth. Landing needs the Mars star map.
+    this.mars = {
+      x: -18000,
+      y: -16500,
+      radius: 105,
+      name: 'MARS'
+    };
+
+    // Keep asteroids away from Mars' landing area too.
+    for (const asteroid of this.asteroids) {
+      while (Math.hypot(asteroid.x - this.mars.x, asteroid.y - this.mars.y) < 700) {
+        asteroid.x = random(-half, half);
+        asteroid.y = random(-half, half);
+      }
+    }
+
     // The Moon: a fixed destination far from the starting point.
     this.moon = {
       x: 11000,

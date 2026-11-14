@@ -155,7 +155,7 @@ function renderSaveList() {
     const mode = snapshot.gameMode || 'driving';
 
     const location = mode === 'moon'
-      ? 'LUNAR SURFACE'
+      ? (snapshot.landedPlanet === 'mars' ? 'MARTIAN SURFACE' : 'LUNAR SURFACE')
       : mode === 'walking'
         ? 'WAYFARER INTERIOR'
         : 'DEEP SPACE';

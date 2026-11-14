@@ -1,5 +1,7 @@
 import { CONFIG } from './config.js';
-import { wrap } from './math.js';
+// Space does NOT wrap around: the ship stops at the edge of the world.
+// (Wrapping used to show far-away objects on the opposite edge.)
+const wrap = value => value;
 
 export function drawBackground(ctx, width, height) {
   ctx.fillStyle = '#000000';
@@ -78,18 +80,17 @@ export function drawWorld(
 
   drawShip(ctx, ship, width, height, sprite);
 
-  const moonDistance = Math.hypot(
-    wrap(world.moon.x - ship.x, CONFIG.worldSize),
-    wrap(world.moon.y - ship.y, CONFIG.worldSize)
-  );
+  // Landing prompt near the Moon or Mars.
+  for (const body of [world.moon, world.mars]) {
+    if (!body) continue;
 
-  // Landing prompt.
-  if (moonDistance <= world.moon.radius + 125) {
-    drawLandingPrompt(ctx, width, height);
+    if (Math.hypot(body.x - ship.x, body.y - ship.y) <= body.radius + 125) {
+      drawLandingPrompt(ctx, width, height);
+    }
   }
 
   if (minimapOpen) {
-    drawMinimap(ctx, ship, world.moon, width, height, world.earth);
+    drawMinimap(ctx, ship, world.moon, width, height, world.earth, world.mars);
   }
 }
 
@@ -196,6 +197,25 @@ function drawWorldObjects(ctx, world, ship, width, height, texturedBackground) {
       world.moon.radius
     );
   }
+
+  // Mars (same planet drawing, Mars colours).
+  if (world.mars) {
+    const marsDX = world.mars.x - ship.x;
+    const marsDY = world.mars.y - ship.y;
+
+    if (
+      Math.abs(marsDX) < width / 2 + world.mars.radius &&
+      Math.abs(marsDY) < height / 2 + world.mars.radius
+    ) {
+      drawMoon(
+        ctx,
+        width / 2 + marsDX,
+        height / 2 + marsDY,
+        world.mars.radius,
+        MARS_LOOK
+      );
+    }
+  }
 }
 
 export function drawVisibility(ctx, width, height) {
@@ -222,15 +242,42 @@ export function drawVisibility(ctx, width, height) {
   ctx.fillRect(0, 0, width, height);
 }
 
-function drawMoon(ctx, x, y, radius) {
+// Colours for planets drawn with drawMoon().
+const MOON_LOOK = {
+  glow: 'rgba(125, 170, 190, 0.45)',
+  base: '#929b9d',
+  light: '#d0d0c7',
+  mid: '#969b99',
+  dark: '#424b4c',
+  crater: 'rgba(43, 49, 49, 0.45)',
+  rim: 'rgba(220, 220, 205, 0.25)',
+  edge: 'rgba(135, 185, 205, 0.45)',
+  label: '#d8d8ce',
+  name: 'THE MOON'
+};
+
+const MARS_LOOK = {
+  glow: 'rgba(210, 110, 70, 0.45)',
+  base: '#a55a3c',
+  light: '#e09a72',
+  mid: '#b0603f',
+  dark: '#4a2418',
+  crater: 'rgba(60, 25, 15, 0.45)',
+  rim: 'rgba(240, 190, 160, 0.25)',
+  edge: 'rgba(230, 140, 100, 0.45)',
+  label: '#f0c8b0',
+  name: 'MARS'
+};
+
+function drawMoon(ctx, x, y, radius, look = MOON_LOOK) {
   ctx.save();
   ctx.translate(Math.floor(x), Math.floor(y));
 
   // Subtle blue glow.
-  ctx.shadowColor = 'rgba(125, 170, 190, 0.45)';
+  ctx.shadowColor = look.glow;
   ctx.shadowBlur = 28;
 
-  ctx.fillStyle = '#929b9d';
+  ctx.fillStyle = look.base;
   ctx.beginPath();
   ctx.arc(0, 0, radius, 0, Math.PI * 2);
   ctx.fill();
@@ -247,9 +294,9 @@ function drawMoon(ctx, x, y, radius) {
     radius
   );
 
-  surface.addColorStop(0, '#d0d0c7');
-  surface.addColorStop(0.55, '#969b99');
-  surface.addColorStop(1, '#424b4c');
+  surface.addColorStop(0, look.light);
+  surface.addColorStop(0.55, look.mid);
+  surface.addColorStop(1, look.dark);
 
   ctx.fillStyle = surface;
   ctx.beginPath();
@@ -270,7 +317,7 @@ function drawMoon(ctx, x, y, radius) {
   ];
 
   for (const [cx, cy, size] of craters) {
-    ctx.fillStyle = 'rgba(43, 49, 49, 0.45)';
+    ctx.fillStyle = look.crater;
     ctx.beginPath();
     ctx.ellipse(
       cx,
@@ -283,7 +330,7 @@ function drawMoon(ctx, x, y, radius) {
     );
     ctx.fill();
 
-    ctx.strokeStyle = 'rgba(220, 220, 205, 0.25)';
+    ctx.strokeStyle = look.rim;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(
@@ -297,7 +344,7 @@ function drawMoon(ctx, x, y, radius) {
   }
 
   // Atmospheric edge.
-  ctx.strokeStyle = 'rgba(135, 185, 205, 0.45)';
+  ctx.strokeStyle = look.edge;
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.arc(0, 0, radius + 2, 0, Math.PI * 2);
@@ -306,10 +353,10 @@ function drawMoon(ctx, x, y, radius) {
   // Planet name.
   ctx.shadowColor = '#000';
   ctx.shadowBlur = 8;
-  ctx.fillStyle = '#d8d8ce';
+  ctx.fillStyle = look.label;
   ctx.textAlign = 'center';
   ctx.font = 'bold 13px monospace';
-  ctx.fillText('THE MOON', 0, radius + 24);
+  ctx.fillText(look.name, 0, radius + 24);
 
   ctx.restore();
 }
@@ -422,7 +469,7 @@ function drawLandingPrompt(ctx, width, height) {
 const MINIMAP_RANGE = 20000;
 const MINIMAP_GRID = 2500;
 
-function drawMinimap(ctx, ship, moon, width, height, earth = null) {
+function drawMinimap(ctx, ship, moon, width, height, earth = null, mars = null) {
   const panelWidth = 220;
   const panelHeight = 235;
   const panelX = width - panelWidth - 25;
@@ -468,6 +515,7 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null) {
 
   const moonPoint = clampToMap(toMap(moon.x, moon.y));
   const earthPoint = earth ? clampToMap(toMap(earth.x, earth.y)) : null;
+  const marsPoint = mars ? clampToMap(toMap(mars.x, mars.y)) : null;
 
   const dx = moon.x - ship.x;
   const dy = moon.y - ship.y;
@@ -555,6 +603,7 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null) {
   };
 
   if (earthPoint) drawPlanetMarker(earthPoint, '#4f8fc4', 4);
+  if (marsPoint) drawPlanetMarker(marsPoint, '#d0704a', 5);
   drawPlanetMarker(moonPoint, '#c7c9bd', 5);
 
   // Ship marker: always in the centre, pointing where the ship faces.
@@ -583,28 +632,30 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null) {
   ctx.font = '9px monospace';
   ctx.fillText('SHIP', panelX + 27, panelY + 214);
 
-  ctx.fillStyle = '#c7c9bd';
-  ctx.beginPath();
-  ctx.arc(panelX + 79, panelY + 210, 4, 0, Math.PI * 2);
-  ctx.fill();
+  // Legend dots: MOON · EARTH · MARS.
+  const legend = [
+    ['MOON', '#c7c9bd', 66],
+    ['EARTH', '#4f8fc4', 112],
+    ['MARS', '#d0704a', 164]
+  ];
 
-  ctx.fillStyle = '#aaa';
-  ctx.fillText('MOON', panelX + 89, panelY + 214);
+  for (const [label, color, offset] of legend) {
+    if (label === 'EARTH' && !earth) continue;
+    if (label === 'MARS' && !mars) continue;
 
-  if (earth) {
-    ctx.fillStyle = '#4f8fc4';
+    ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(panelX + 135, panelY + 210, 4, 0, Math.PI * 2);
+    ctx.arc(panelX + offset, panelY + 210, 4, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#aaa';
-    ctx.fillText('EARTH', panelX + 145, panelY + 214);
+    ctx.fillText(label, panelX + offset + 8, panelY + 214);
   }
 
   ctx.fillStyle = '#d5d3c8';
   ctx.font = '10px monospace';
   ctx.fillText(
-    `DIR ${directions[directionIndex]}  ·  DIST ${Math.round(distance).toLocaleString()}`,
+    `MOON ${directions[directionIndex]} · ${Math.round(distance).toLocaleString()}`,
     panelX + 14,
     panelY + 229
   );

@@ -1,7 +1,6 @@
 import { ScrapSystem } from './scraps.js';
 import { isTypingTarget } from './input.js';
-
-const SURFACE_RADIUS = 4800;
+import { PLANETS } from './planets.js';
 const WALK_SPEED = 190;
 const RUN_MULTIPLIER = 1.2;
 
@@ -33,13 +32,10 @@ export class MoonSurface {
     this.shipX = 0;
     this.shipY = 0;
 
-    this.craters = [];
-    this.rocks = [];
-    this.ridges = [];
-
     this.scraps = new ScrapSystem(assets);
 
-    this.generateTerrain();
+    // Starts on the Moon; main.js switches planets with setPlanet().
+    this.setPlanet(PLANETS.moon);
 
     window.addEventListener('keydown', (event) => {
       if (isTypingTarget(event)) return;
@@ -69,45 +65,59 @@ export class MoonSurface {
     return value - Math.floor(value);
   }
 
+  // Switches the surface to another planet (Moon, Mars, ...) and rebuilds
+  // its terrain. The terrain is seeded, so a planet always looks the same.
+  setPlanet(planet) {
+    this.planet = planet;
+    this.craters = [];
+    this.rocks = [];
+    this.ridges = [];
+    this.generateTerrain();
+  }
+
   generateTerrain() {
+    const R = this.planet.radius;
+    // Each planet adds its own seed offset, so Mars has different terrain.
+    const s = this.planet.seed;
+
     // LARGE CRATERS
-    for (let i = 0; i < 190; i++) {
-      const angle = this.random(i + 1) * Math.PI * 2;
-      const distance = Math.sqrt(this.random(i + 400)) * SURFACE_RADIUS * 0.92;
+    for (let i = 0; i < this.planet.craters; i++) {
+      const angle = this.random(s + i + 1) * Math.PI * 2;
+      const distance = Math.sqrt(this.random(s + i + 400)) * R * 0.92;
 
       this.craters.push({
         x: Math.cos(angle) * distance,
         y: Math.sin(angle) * distance,
-        radius: 35 + this.random(i + 800) * 190,
-        depth: 0.4 + this.random(i + 1200) * 0.6,
-        rotation: this.random(i + 1600) * Math.PI * 2
+        radius: 35 + this.random(s + i + 800) * 190,
+        depth: 0.4 + this.random(s + i + 1200) * 0.6,
+        rotation: this.random(s + i + 1600) * Math.PI * 2
       });
     }
 
     // SMALL ROCKS
-    for (let i = 0; i < 1400; i++) {
-      const angle = this.random(i + 2000) * Math.PI * 2;
-      const distance = Math.sqrt(this.random(i + 3000)) * SURFACE_RADIUS;
+    for (let i = 0; i < this.planet.rocks; i++) {
+      const angle = this.random(s + i + 2000) * Math.PI * 2;
+      const distance = Math.sqrt(this.random(s + i + 3000)) * R;
 
       this.rocks.push({
         x: Math.cos(angle) * distance,
         y: Math.sin(angle) * distance,
-        size: 2 + this.random(i + 4000) * 9,
-        shade: Math.floor(this.random(i + 5000) * 4)
+        size: 2 + this.random(s + i + 4000) * 9,
+        shade: Math.floor(this.random(s + i + 5000) * 4)
       });
     }
 
     // LONG TERRAIN RIDGES
-    for (let i = 0; i < 65; i++) {
-      const angle = this.random(i + 6000) * Math.PI * 2;
-      const distance = Math.sqrt(this.random(i + 7000)) * SURFACE_RADIUS * 0.85;
+    for (let i = 0; i < this.planet.ridges; i++) {
+      const angle = this.random(s + i + 6000) * Math.PI * 2;
+      const distance = Math.sqrt(this.random(s + i + 7000)) * R * 0.85;
 
       this.ridges.push({
         x: Math.cos(angle) * distance,
         y: Math.sin(angle) * distance,
-        width: 100 + this.random(i + 8000) * 300,
-        height: 25 + this.random(i + 9000) * 70,
-        rotation: this.random(i + 10000) * Math.PI
+        width: 100 + this.random(s + i + 8000) * 300,
+        height: 25 + this.random(s + i + 9000) * 70,
+        rotation: this.random(s + i + 10000) * Math.PI
       });
     }
   }
@@ -185,9 +195,9 @@ export class MoonSurface {
       this.walkAnimation += dt * 12;
     }
 
-    // Keep the player inside the lunar surface.
+    // Keep the player inside the planet's surface.
     const distance = Math.hypot(this.x, this.y);
-    const limit = SURFACE_RADIUS - 40;
+    const limit = this.planet.radius - 40;
 
     if (distance > limit) {
       this.x = (this.x / distance) * limit;
@@ -238,19 +248,19 @@ export class MoonSurface {
   }
 
   drawGround(ctx, width, height, cameraX, cameraY) {
-    ctx.fillStyle = '#111211';
+    ctx.fillStyle = this.planet.palette.space;
     ctx.fillRect(0, 0, width, height);
 
     const surfaceX = cameraX;
     const surfaceY = cameraY;
 
     // Lunar surface boundary.
-    ctx.fillStyle = '#77766f';
+    ctx.fillStyle = this.planet.palette.ground;
     ctx.beginPath();
     ctx.arc(
       surfaceX,
       surfaceY,
-      SURFACE_RADIUS,
+      this.planet.radius,
       0,
       Math.PI * 2
     );
@@ -262,19 +272,19 @@ export class MoonSurface {
     ctx.arc(
       surfaceX,
       surfaceY,
-      SURFACE_RADIUS,
+      this.planet.radius,
       0,
       Math.PI * 2
     );
     ctx.clip();
 
     // Subtle surface texture.
-    ctx.fillStyle = '#85837b';
+    ctx.fillStyle = this.planet.palette.patches;
     ctx.globalAlpha = 0.25;
 
     for (let i = 0; i < 28; i++) {
       const angle = this.random(i + 12000) * Math.PI * 2;
-      const distance = this.random(i + 13000) * SURFACE_RADIUS;
+      const distance = this.random(i + 13000) * this.planet.radius;
 
       const x = surfaceX + Math.cos(angle) * distance;
       const y = surfaceY + Math.sin(angle) * distance;
@@ -311,7 +321,7 @@ export class MoonSurface {
       ctx.translate(x, y);
       ctx.rotate(ridge.rotation);
 
-      ctx.fillStyle = '#68675f';
+      ctx.fillStyle = this.planet.palette.ridge;
       ctx.beginPath();
       ctx.ellipse(
         0,
@@ -324,7 +334,7 @@ export class MoonSurface {
       );
       ctx.fill();
 
-      ctx.fillStyle = '#a09d92';
+      ctx.fillStyle = this.planet.palette.ridgeLight;
       ctx.beginPath();
       ctx.ellipse(
         -ridge.width * 0.12,
@@ -358,7 +368,7 @@ export class MoonSurface {
       ctx.rotate(crater.rotation);
 
       // Outer shadow.
-      ctx.fillStyle = '#56554f';
+      ctx.fillStyle = this.planet.palette.craterShadow;
       ctx.beginPath();
       ctx.ellipse(
         0,
@@ -372,7 +382,7 @@ export class MoonSurface {
       ctx.fill();
 
       // Raised crater rim.
-      ctx.strokeStyle = '#aaa69a';
+      ctx.strokeStyle = this.planet.palette.craterRim;
       ctx.lineWidth = Math.max(3, r * 0.1);
       ctx.beginPath();
       ctx.ellipse(
@@ -387,7 +397,7 @@ export class MoonSurface {
       ctx.stroke();
 
       // Dark crater interior.
-      ctx.fillStyle = '#45443f';
+      ctx.fillStyle = this.planet.palette.craterInside;
       ctx.beginPath();
       ctx.ellipse(
         0,
@@ -401,7 +411,7 @@ export class MoonSurface {
       ctx.fill();
 
       // Inner illuminated floor.
-      ctx.fillStyle = '#5b5952';
+      ctx.fillStyle = this.planet.palette.craterFloor;
       ctx.beginPath();
       ctx.ellipse(
         -r * 0.12,
@@ -418,12 +428,7 @@ export class MoonSurface {
     }
 
     // Rocks and small details.
-    const rockColors = [
-      '#55544e',
-      '#69675f',
-      '#929087',
-      '#45443f'
-    ];
+    const rockColors = this.planet.palette.rocks;
 
     for (const rock of this.rocks) {
       const x = surfaceX + rock.x;
@@ -449,10 +454,10 @@ export class MoonSurface {
     const edge = ctx.createRadialGradient(
       surfaceX,
       surfaceY,
-      SURFACE_RADIUS - 150,
+      this.planet.radius - 150,
       surfaceX,
       surfaceY,
-      SURFACE_RADIUS + 80
+      this.planet.radius + 80
     );
 
     edge.addColorStop(0, 'rgba(0,0,0,0)');
@@ -778,7 +783,7 @@ export class MoonSurface {
     const x = screenWidth - size - 25;
     const y = 25;
     const radius = size / 2 - 25;
-    const scale = radius / SURFACE_RADIUS;
+    const scale = radius / this.planet.radius;
 
     ctx.save();
 
@@ -799,7 +804,7 @@ export class MoonSurface {
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.clip();
 
-    ctx.fillStyle = '#77766e';
+    ctx.fillStyle = this.planet.palette.mapGround;
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fill();
@@ -810,12 +815,12 @@ export class MoonSurface {
       const my = cy + crater.y * scale;
       const r = Math.max(2, crater.radius * scale);
 
-      ctx.fillStyle = '#55544e';
+      ctx.fillStyle = this.planet.palette.craterShadow;
       ctx.beginPath();
       ctx.arc(mx, my, r, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = '#aaa69a';
+      ctx.strokeStyle = this.planet.palette.craterRim;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(mx, my, r * 0.8, 0, Math.PI * 2);
@@ -867,7 +872,7 @@ export class MoonSurface {
     ctx.fillStyle = '#d5d0c5';
     ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText('LUNAR SURFACE MAP', x + 14, y + 19);
+    ctx.fillText(this.planet.mapTitle, x + 14, y + 19);
 
     ctx.font = '10px monospace';
     ctx.fillStyle = '#8bd0b7';

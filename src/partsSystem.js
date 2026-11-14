@@ -47,9 +47,13 @@ function randomRange(min, max) {
 // RARITY ODDS PER DESTINATION (percent, each row adds up to 100).
 // Part type is picked separately: all 5 types are equally likely (20%).
 // So exact-part odds = 20% x rarity odds (Moon common engine = 14%).
-// Add Mars, Europa, Titan, Umbriel here later.
 const PLANET_RARITY_ODDS = {
-  moon: { common: 70, rare: 27, epic: 3, mythic: 0, legendary: 0 }
+  moon:    { common: 70, rare: 27, epic: 3,  mythic: 0,  legendary: 0 },
+  mars:    { common: 45, rare: 40, epic: 13, mythic: 2,  legendary: 0 },
+  // Not built yet - ready for when these destinations are added.
+  europa:  { common: 20, rare: 35, epic: 30, mythic: 13, legendary: 2 },
+  titan:   { common: 8,  rare: 22, epic: 38, mythic: 25, legendary: 7 },
+  umbriel: { common: 2,  rare: 8,  epic: 25, mythic: 45, legendary: 20 }
 };
 
 function rollRarity(planet = 'moon') {
@@ -68,7 +72,7 @@ function rollRarity(planet = 'moon') {
 const PARTS_PER_MOON = 6;
 
 // Creates a fresh batch of modules scattered over the Moon.
-function createParts() {
+function createParts(planet = 'moon') {
   const parts = [];
   const count = PARTS_PER_MOON;
   const batch = Date.now().toString(36);
@@ -80,7 +84,7 @@ function createParts() {
     parts.push({
       id: `moon-part-${batch}-${i}`,
       type: TYPES[Math.floor(Math.random() * TYPES.length)],
-      rarity: rollRarity(),
+      rarity: rollRarity(planet),
       x: Math.cos(angle) * distance,
       y: Math.sin(angle) * distance,
       collected: false
@@ -251,14 +255,17 @@ export function attachPartsSystem(moonSurface) {
 
   // Replace the modules lying on the Moon with a new batch (each new day).
   // Installed modules and the module inventory are kept.
-  function respawn() {
-    parts.items = createParts();
+  // planet = 'moon' or 'mars' (uses that planet's rarity odds).
+  function respawn(planet = 'moon') {
+    parts.items = createParts(planet);
   }
 
   // Older saves could have too many modules on the Moon, or mythic /
   // legendary ones. If so, replace them with a normal batch.
-  function fixMoonItems() {
-    const MOON_RARITIES = ['common', 'rare', 'epic'];
+  function fixMoonItems(planet = 'moon') {
+    // Rarities that can drop on this planet (odds above 0).
+    const odds = PLANET_RARITY_ODDS[planet] || PLANET_RARITY_ODDS.moon;
+    const MOON_RARITIES = Object.keys(odds).filter(rarity => odds[rarity] > 0);
 
     const invalid =
       !Array.isArray(parts.items) ||
@@ -266,7 +273,7 @@ export function attachPartsSystem(moonSurface) {
       parts.items.some(part => !MOON_RARITIES.includes(part.rarity));
 
     if (invalid) {
-      parts.items = createParts();
+      parts.items = createParts(planet);
     }
   }
 

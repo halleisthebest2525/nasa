@@ -16,6 +16,7 @@ import { createStatsSection } from './inventoryStats.js';
 import { createShipConfigSection } from './shipConfigView.js';
 import { createLunarCrawlers } from './lunarCrawler.js';
 import { createChestQuest } from './chestQuest.js';
+import { PLANETS } from './planets.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -100,8 +101,61 @@ let moduleStats = partsSystem.getStats();
 
 let hullMax = moduleStats.maxHull;
 
+// landedOnMoon = "landed on a planet surface" (Moon or Mars).
 let landedOnMoon = false;
 let shipSprite = assets.ship_space_common;
+
+// ==========================================
+// PLANETS (Moon, Mars)
+// One surface object (moonSurface) is reused for every planet.
+// landedPlanet = the planet whose surface is currently loaded.
+// planetStates keeps the scrap/modules of the planets NOT loaded right now.
+// ==========================================
+let landedPlanet = 'moon';
+let planetStates = {};
+
+// Turns crawlers / the chest on or off for the loaded planet.
+function applyPlanetFeatures() {
+  const planet = PLANETS[landedPlanet];
+
+  moonSurface.enemies = planet.enemies ? crawlers : null;
+  moonSurface.chestQuest = planet.chestQuest ? chestQuest : null;
+}
+
+// Loads another planet's surface, keeping each planet's own loot.
+function switchPlanet(id) {
+  if (!PLANETS[id] || id === landedPlanet) return;
+
+  // Store the planet we are leaving.
+  planetStates[landedPlanet] = {
+    scrapItems: moonSurface.scraps.items,
+    partItems: partsSystem.getParts().items
+  };
+
+  landedPlanet = id;
+
+  const stored = planetStates[id];
+
+  if (stored) {
+    moonSurface.scraps.items = stored.scrapItems;
+    partsSystem.getParts().items = stored.partItems;
+    delete planetStates[id];
+  } else {
+    // First visit: fresh scrap and modules with this planet's odds.
+    moonSurface.scraps.respawn();
+    partsSystem.respawn(id);
+  }
+
+  moonSurface.setPlanet(PLANETS[id]);
+  applyPlanetFeatures();
+}
+
+// Distance to the quest chest, only on the planet that has it.
+function currentChestDistance() {
+  return PLANETS[landedPlanet].chestQuest
+    ? chestQuest.getChestDistance()
+    : null;
+}
 
 // GAME STATE
 let hull = 100;
@@ -926,8 +980,10 @@ function updateModuleEffects(adjustHull = true) {
 window.addEventListener('nasareth:modules-changed', () => {
   updateModuleEffects();
 
-  // All modules on the Moon collected -> chest detector.
-  chestQuest.checkModules();
+  // All modules on the Moon collected -> chest detector (Moon only).
+  if (PLANETS[landedPlanet].chestQuest) {
+    chestQuest.checkModules();
+  }
 });
 
 updateModuleEffects(false);
@@ -1044,9 +1100,11 @@ function finishSleep() {
   onFoot.clearKeys();
   heldKeys.clear();
 
-  // A new day: fresh scrap and modules appear on the Moon.
+  // A new day: fresh scrap and modules on the loaded planet. Other
+  // planets get fresh loot too (generated when you next land there).
   moonSurface.scraps.respawn();
-  partsSystem.respawn();
+  partsSystem.respawn(landedPlanet);
+  planetStates = {};
   crawlers.respawn(moonSurface.x, moonSurface.y);
 
   showTransmission(
@@ -1118,11 +1176,11 @@ launchConfirm.innerHTML = `
     border:1px solid #89917b;
     box-shadow:0 15px 60px #000;
   ">
-    <div style="color:#d5dfb4;font-size:20px;letter-spacing:3px">
+    <div id="launch-title" style="color:#d5dfb4;font-size:20px;letter-spacing:3px">
       DEPART THE MOON?
     </div>
-    <p style="color:#aaa;font-size:12px;line-height:1.8">
-      Launch the spaceship and leave the lunar surface?
+    <p id="launch-text" style="color:#aaa;font-size:12px;line-height:1.8">
+      Launch the spaceship and leave the surface?
     </p>
     <div style="display:flex;justify-content:center;gap:14px;margin-top:24px">
       <button id="launch-yes" style="
@@ -1160,6 +1218,11 @@ function openLaunchConfirmation() {
   launchSelection = 0;
   onFoot.clearKeys();
 
+  // "DEPART THE MOON?" / "DEPART MARS?"
+  const planetName = PLANETS[landedPlanet].name;
+  launchConfirm.querySelector('#launch-title').textContent =
+    `DEPART ${planetName}?`;
+
   launchConfirm.style.display = 'flex';
   updateLaunchButtons();
 }
@@ -1173,8 +1236,11 @@ function closeLaunchConfirmation() {
 function confirmLaunch() {
   closeLaunchConfirmation();
 
-  ship.x = world.moon.x + world.moon.radius + 170;
-  ship.y = world.moon.y;
+  // Back into space next to the planet we were on.
+  const body = world[landedPlanet] || world.moon;
+
+  ship.x = body.x + body.radius + 170;
+  ship.y = body.y;
   ship.vx = 0;
   ship.vy = 0;
   ship.boosting = false;
@@ -1401,8 +1467,12 @@ function startEarthLaunch() {
   });
 }
 
-function startMoonLanding() {
+// planetId = 'moon' or 'mars'. Same landing gauge for every planet.
+function startMoonLanding(planetId = 'moon') {
   if (isGaugeChallengeActive() || gameOver) return;
+
+  const planet = PLANETS[planetId];
+  const body = world[planetId];
 
   ship.vx = 0;
   ship.vy = 0;
@@ -1410,8 +1480,8 @@ function startMoonLanding() {
   minimapOpen = false;
 
   runGaugeChallenge({
-    kicker: 'LUNAR APPROACH · DESCENT BURNS',
-    title: 'LAND ON THE MOON',
+    kicker: `${planet.name} APPROACH · DESCENT BURNS`,
+    title: `LAND ON ${planet.name}`,
     required: LANDING_REQUIRED,
     maxAttempts: LANDING_MAX_ATTEMPTS,
     fillSeconds: 1.25,
@@ -1435,18 +1505,20 @@ function startMoonLanding() {
       return;
     }
 
-    // LANDED.
-    ship.x = world.moon.x;
-    ship.y = world.moon.y;
+    // LANDED: load this planet's surface.
+    ship.x = body.x;
+    ship.y = body.y;
     ship.vx = 0;
     ship.vy = 0;
     ship.boosting = false;
+
+    switchPlanet(planetId);
 
     landedOnMoon = true;
     gameMode = 'moon';
     moonSurface.enter();
 
-    console.log('Landed on the Moon');
+    console.log(`Landed on ${planet.name}`);
   });
 }
 
@@ -1468,14 +1540,23 @@ window.addEventListener('keydown', (event) => {
   event.preventDefault();
 
   if (gameMode === 'driving') {
-    const moonDistance = Math.hypot(
-      world.moon.x - ship.x,
-      world.moon.y - ship.y
-    );
+    // Which planet (if any) is close enough to land on?
+    const nearPlanet = ['moon', 'mars'].find(id => {
+      const body = world[id];
+      return body && Math.hypot(body.x - ship.x, body.y - ship.y) <= body.radius + 125;
+    });
 
-    if (moonDistance <= world.moon.radius + 125) {
-      // LAND ON THE MOON: the landing gauge must be passed first.
-      startMoonLanding();
+    if (nearPlanet === 'mars' && !chestQuest.getState().marsMap) {
+      // Mars needs the star map from the Moon chest.
+      showTransmission(
+        'NAVIGATION DATA MISSING\n' +
+        'MARS LANDING REQUIRES THE MARS STAR MAP\n' +
+        'FIND THE CHEST ON THE MOON',
+        '#d0704a'
+      );
+    } else if (nearPlanet) {
+      // LAND: the landing gauge must be passed first.
+      startMoonLanding(nearPlanet);
     } else {
       // ENTER SHIP INTERIOR.
       gameMode = 'walking';
@@ -1770,7 +1851,7 @@ function drawSurvivalEquipment(context) {
 
     // CHEST SIGNAL (gold light).
     if (hasChestDetector) {
-      const chestDistance = chestQuest.getChestDistance();
+      const chestDistance = currentChestDistance();
       const chestLit = chestDistance !== null && survival.detectorLit;
 
       context.beginPath();
@@ -1955,15 +2036,9 @@ function handleFuelDepletion() {
 // COLLISION DETECTION
 function checkCollisions() {
   for (const asteroid of world.asteroids) {
-    const dx = (
-      (asteroid.x - ship.x + CONFIG.worldSize / 2) %
-      CONFIG.worldSize + CONFIG.worldSize
-    ) % CONFIG.worldSize - CONFIG.worldSize / 2;
-
-    const dy = (
-      (asteroid.y - ship.y + CONFIG.worldSize / 2) %
-      CONFIG.worldSize + CONFIG.worldSize
-    ) % CONFIG.worldSize - CONFIG.worldSize / 2;
+    // Space does not wrap around, so a plain difference is correct.
+    const dx = asteroid.x - ship.x;
+    const dy = asteroid.y - ship.y;
 
     const distance = Math.hypot(dx, dy);
     const collisionDistance = asteroid.size / 2 + 32;
@@ -2059,6 +2134,8 @@ function createSnapshot() {
     gameMinutes: sleeping ? 7 * 60 : gameMinutes,
     hull,
     landedOnMoon,
+    landedPlanet,
+    planetStates: structuredClone(planetStates),
     launchComplete,
 
     ship: {
@@ -2137,6 +2214,14 @@ function loadPendingSave() {
       world
     });
 
+    // Which planet's surface was loaded (older saves: the Moon).
+    landedPlanet = PLANETS[save.landedPlanet] ? save.landedPlanet : 'moon';
+    planetStates = save.planetStates && typeof save.planetStates === 'object'
+      ? save.planetStates
+      : {};
+    moonSurface.setPlanet(PLANETS[landedPlanet]);
+    applyPlanetFeatures();
+
     // Keep the parts-system reference alive after loading a save.
     if (save.moon?.parts) {
       const liveParts = partsSystem.getParts();
@@ -2146,13 +2231,13 @@ function loadPendingSave() {
       moonSurface.parts = liveParts;
 
       // Max 6 modules on the Moon, epic at most (fixes older saves).
-      partsSystem.fixMoonItems();
+      partsSystem.fixMoonItems(landedPlanet);
     }
 
     // Chest quest progress (older saves have none).
     chestQuest.load(save.moon?.progress);
 
-    if (save.moon) {
+    if (save.moon && PLANETS[landedPlanet].chestQuest) {
       chestQuest.checkModules();
     }
 
@@ -2356,7 +2441,7 @@ function frame(time) {
           moonSurface.update(dt, survival.canRun(), survival.staminaExhausted);
 
           // Lunar Crawlers chase and attack the player.
-          crawlers.update(dt, {
+          if (PLANETS[landedPlanet].enemies) crawlers.update(dt, {
             x: moonSurface.x,
             y: moonSurface.y,
             damage(amount) {
@@ -2375,14 +2460,14 @@ function frame(time) {
           survival.updateMoon(dt, isRunning());
 
           // Open the quest chest when the player walks onto it.
-          chestQuest.update();
+          if (PLANETS[landedPlanet].chestQuest) chestQuest.update();
 
           const targets = getNearestDetectorTargets();
 
           const distances = [
             targets.scrap?.distance,
             targets.module?.distance,
-            chestQuest.getChestDistance()
+            currentChestDistance()
           ].filter(Number.isFinite);
 
           const nearestDistance = distances.length
@@ -2484,7 +2569,7 @@ function frame(time) {
     canvas.height
   );
 
-  updateHud(ship, hull, survival, gameMode);
+  updateHud(ship, hull, survival, gameMode === 'moon' ? landedPlanet : gameMode);
 
   requestAnimationFrame(frame);
 }

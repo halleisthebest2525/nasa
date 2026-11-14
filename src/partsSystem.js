@@ -27,6 +27,15 @@ const TYPE_NAMES = {
   computer: 'COMPUTER'
 };
 
+// Maps each part type to its exact assets.txt prefix.
+const IMAGE_NAMES = {
+  engine: 'engine',
+  fuelTank: 'fuel_tank',
+  energyModule: 'energy_module',
+  hullCargo: 'hull_and_cargo',
+  computer: 'control_center'
+};
+
 const ENGINE_SPEED = [1, 1.05, 1.09, 1.13, 1.17, 1.22];
 const ENGINE_DRAIN = [1, 1.06, 1.12, 1.18, 1.24, 1.30];
 const ENERGY_EFFICIENCY = [1, 0.95, 0.90, 0.85, 0.80, 0.75];
@@ -42,7 +51,6 @@ function createInitialState() {
   for (let i = 0; i < 2; i++) {
     const angle = randomRange(0, Math.PI * 2);
     const distance = randomRange(1000, SURFACE_RADIUS * 0.82);
-
     const roll = Math.random() * 100;
 
     let rarity = 'common';
@@ -190,7 +198,7 @@ export function attachPartsSystem(moonSurface) {
     parts.pickupTimer = Math.max(0, parts.pickupTimer - dt);
   };
 
-  // Draw parts after the existing scrap objects.
+  // Draw actual part images instead of placeholder hexagons.
   const originalDrawWorld =
     moonSurface.scraps.drawWorld.bind(moonSurface.scraps);
 
@@ -203,48 +211,82 @@ export function attachPartsSystem(moonSurface) {
       const x = cameraX + part.x;
       const y = cameraY + part.y;
 
-      if (x < -30 || y < -30 || x > width + 30 || y > height + 30) {
+      if (x < -40 || y < -40 || x > width + 40 || y > height + 40) {
         continue;
       }
 
       const color = RARITIES[part.rarity]?.color || '#b8b9ae';
 
+      const prefix = IMAGE_NAMES[part.type];
+      const assetName = `${prefix}_${part.rarity}`;
+      const image = moonSurface.assets[assetName];
+
       ctx.save();
       ctx.translate(x, y);
 
+      // Rarity glow.
       ctx.shadowColor = color;
-      ctx.shadowBlur = 13;
+      ctx.shadowBlur = 14;
 
-      ctx.fillStyle = '#171b19';
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
+      if (
+        image &&
+        image.complete &&
+        image.naturalWidth > 0 &&
+        image.naturalHeight > 0
+      ) {
+        // Preserve the image's original proportions.
+        const maxWidth = 48;
+        const maxHeight = 48;
 
-      ctx.beginPath();
-      ctx.moveTo(0, -13);
-      ctx.lineTo(11, -6);
-      ctx.lineTo(11, 6);
-      ctx.lineTo(0, 13);
-      ctx.lineTo(-11, 6);
-      ctx.lineTo(-11, -6);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+        const scale = Math.min(
+          maxWidth / image.naturalWidth,
+          maxHeight / image.naturalHeight
+        );
 
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = color;
-      ctx.font = 'bold 10px monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+        const drawWidth = image.naturalWidth * scale;
+        const drawHeight = image.naturalHeight * scale;
 
-      const symbol = {
-        engine: 'E',
-        fuelTank: 'F',
-        energyModule: 'P',
-        hullCargo: 'H',
-        computer: 'C'
-      }[part.type];
+        ctx.drawImage(
+          image,
+          -drawWidth / 2,
+          -drawHeight / 2,
+          drawWidth,
+          drawHeight
+        );
+      } else {
+        // Fallback if an image fails to load.
+        ctx.fillStyle = '#171b19';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
 
-      ctx.fillText(symbol, 0, 1);
+        ctx.beginPath();
+        ctx.moveTo(0, -13);
+        ctx.lineTo(11, -6);
+        ctx.lineTo(11, 6);
+        ctx.lineTo(0, 13);
+        ctx.lineTo(-11, 6);
+        ctx.lineTo(-11, -6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = color;
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const symbol = {
+          engine: 'E',
+          fuelTank: 'F',
+          energyModule: 'P',
+          hullCargo: 'H',
+          computer: 'C'
+        }[part.type];
+
+        ctx.fillText(symbol, 0, 1);
+      }
+
       ctx.restore();
     }
   };

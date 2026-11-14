@@ -1,8 +1,46 @@
-# STARFALL IMAGE ASSETS
-# Format: asset_name=./img/filename.extension
+# Ship sprites
+ship_space_common=img/Rocket_Common_Cargo_Open.png
+ship_moon_common=img/Rocket_Common_Closed.png
+ship_space_rare=img/Rocket_Rare_Cargo_Open.png
+ship_moon_rare=img/Rocket_Rare_Closed.png
+ship_space_epic=img/Rocket_Epic_Cargo_Open.png
+ship_moon_epic=img/Rocket_Epic_Closed.png
+ship_space_mythic=img/Rocket_Mythic_Cargo_Open.png
+ship_moon_mythic=img/Rocket_Mythic_Closed.png
+ship_space_legendary=img/Rocket_Legendary_Cargo_Open.png
+ship_moon_legendary=img/Rocket_Legendary_Closed.png
 
-ship_space=./img/spaceship.jpg
-ship_moon=./img/spaceship.jpg
-player=./img/player.png
-moon_surface=./img/moon_surface.png
-crater=./img/crater.png
+# Control center / computer module
+control_center_common=img/Control_Center_Common.png
+control_center_rare=img/Control_Center_Rare.png
+control_center_epic=img/Control_Center_Epic.png
+control_center_mythic=img/Control_Center_Mythic.png
+control_center_legendary=img/Control_Center_Legendary.png
+
+# Energy modules
+energy_module_common=img/Energy_Module_Common.png
+energy_module_rare=img/Energy_Module_Rare.png
+energy_module_epic=img/Energy_Module_Epic.png
+energy_module_mythic=img/Energy_Module_Mythic.png
+energy_module_legendary=img/Energy_Module_Legendary.png
+
+# Engines
+engine_common=img/Engine_Common.png
+engine_rare=img/Engine_Rare.png
+engine_epic=img/Engine_Epic.png
+engine_mythic=img/Engine_Mythic.png
+engine_legendary=img/Engine_Legendary.png
+
+# Fuel tanks
+fuel_tank_common=img/Fuel_Tank_Common.png
+fuel_tank_rare=img/Fuel_Tank_Rare.png
+fuel_tank_epic=img/Fuel_Tank_Epic.png
+fuel_tank_mythic=img/Fuel_Tank_Mythic.png
+fuel_tank_legendary=img/Fuel_Tank_Legendary.png
+
+# Hull and cargo modules
+hull_and_cargo_common=img/Hull_and_Cargo_Common.png
+hull_and_cargo_rare=img/Hull_and_Cargo_Rare.png
+hull_and_cargo_epic=img/Hull_and_Cargo_Epic.png
+hull_and_cargo_mythic=img/Hull_and_Cargo_Mythic.png
+hull_and_cargo_legendary=img/Hull_and_Cargo_Legendary.png

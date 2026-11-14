@@ -385,104 +385,53 @@ export function attachPartsSystem(moonSurface) {
     ctx.fillText(
       `MODULE: ${parts.pickupMessage}`,
       width / 2,
-      95
+      200 // below the scrap message and the SHIP TIME / HULL boxes
     );
 
     ctx.restore();
   };
 
-  // SHIP MODULES SECTION IN THE B INVENTORY
-  // One row per module slot: icon, name, installed rarity, collected count.
-  const MODULE_ROW_HEIGHT = 27;
+  // LIVE SLOT DATA for the Ship Configuration view in the B inventory.
+  // Read straight from parts.installed every time, never a copy.
+  function getSlotInfo() {
+    return TYPES.map(type => {
+      const rarity = parts.installed[type] || 'base';
+      const rank = RARITIES[rarity]?.rank ?? 0;
 
-  const moduleSection = {
-    // Title (22px) + one row per module type.
-    height: 22 + TYPES.length * MODULE_ROW_HEIGHT,
+      // This part's own effect (same tables getStats() uses).
+      let stat;
 
-    draw(ctx, x, y, panelWidth) {
-      const stats = getStats();
+      if (type === 'engine') {
+        stat = `SPD x${ENGINE_SPEED[rank].toFixed(2)} FUEL x${ENGINE_DRAIN[rank].toFixed(2)}`;
+      } else if (type === 'fuelTank') {
+        stat = `MAX FUEL ${100 + rank * 20}`;
+      } else if (type === 'energyModule') {
+        stat = `USE x${ENERGY_EFFICIENCY[rank].toFixed(2)} +${(ENERGY_PASSIVE[rank] * 60).toFixed(1)}/MIN`;
+      } else if (type === 'hullCargo') {
+        stat = `MAX HULL ${100 + rank * 20}`;
+      } else {
+        stat = `SHIP RANK +${rank}`;
+      }
 
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#d5dfb4';
-      ctx.font = 'bold 15px monospace';
-      ctx.fillText('SHIP MODULES', x + 28, y + 10);
-
-      ctx.textAlign = 'right';
-      ctx.fillStyle = RARITIES[stats.shipRarity]?.color || '#aeb4a9';
-      ctx.font = 'bold 11px monospace';
-      ctx.fillText(
-        `SHIP: ${stats.shipRarity.toUpperCase()}`,
-        x + panelWidth - 28,
-        y + 10
-      );
-
-      TYPES.forEach((type, index) => {
-        const rowY = y + 22 + index * MODULE_ROW_HEIGHT;
-        const rarity = parts.installed[type] || 'base';
-        const color = RARITIES[rarity]?.color || '#aeb4a9';
-
-        const collected = parts.inventory.filter(
-          part => part.type === type
-        ).length;
-
-        ctx.fillStyle = '#222a26';
-        ctx.fillRect(x + 25, rowY, panelWidth - 50, MODULE_ROW_HEIGHT - 4);
-        ctx.strokeStyle = '#424b43';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x + 25, rowY, panelWidth - 50, MODULE_ROW_HEIGHT - 4);
-
-        // Icon: the installed module's image, or a coloured dot for BASE.
-        const image =
-          moonSurface.assets[`${IMAGE_NAMES[type]}_${rarity}`];
-        const iconX = x + 45;
-        const iconY = rowY + (MODULE_ROW_HEIGHT - 4) / 2;
-
-        if (image && image.complete && image.naturalWidth > 0) {
-          const scale = Math.min(
-            20 / image.naturalWidth,
-            20 / image.naturalHeight
-          );
-          const w = image.naturalWidth * scale;
-          const h = image.naturalHeight * scale;
-
-          ctx.drawImage(image, iconX - w / 2, iconY - h / 2, w, h);
-        } else {
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.arc(iconX, iconY, 5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        ctx.textAlign = 'left';
-        ctx.font = 'bold 11px monospace';
-        ctx.fillStyle = '#e0e1d8';
-        ctx.fillText(TYPE_NAMES[type], x + 64, iconY + 4);
-
-        ctx.fillStyle = color;
-        ctx.fillText(rarity.toUpperCase(), x + 210, iconY + 4);
-
-        ctx.textAlign = 'right';
-        ctx.fillStyle = '#a8ad9d';
-        ctx.font = '11px monospace';
-        ctx.fillText(
-          `COLLECTED x ${collected}`,
-          x + panelWidth - 40,
-          iconY + 4
-        );
-      });
-    }
-  };
-
-  // Add the module section to the B inventory.
-  moonSurface.scraps.inventorySections =
-    moonSurface.scraps.inventorySections || [];
-  moonSurface.scraps.inventorySections.push(moduleSection);
+      return {
+        type,
+        name: TYPE_NAMES[type],
+        rarity,
+        color: RARITIES[rarity]?.color || '#aeb4a9',
+        // Same asset name used to draw this part on the Moon.
+        imageKey: `${IMAGE_NAMES[type]}_${rarity}`,
+        stat,
+        collected: parts.inventory.filter(part => part.type === type).length
+      };
+    });
+  }
 
   return {
     getStats,
     getParts: () => parts,
     getInstalled: () => parts.installed,
     getNearestUncollected,
+    getSlotInfo,
     respawn,
     fixMoonItems
   };

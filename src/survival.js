@@ -32,7 +32,7 @@ export class Survival {
 
     if (!moving || this.fuel <= 0) return;
 
-    const drain = boosting ? 0.60 : 0.20;
+    const drain = boosting ? 0.70 : 0.30;
     const efficiency = modules.fuelDrainMultiplier || 1;
 
     this.fuel = Math.max(

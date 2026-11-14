@@ -418,6 +418,10 @@ function drawLandingPrompt(ctx, width, height) {
   ctx.restore();
 }
 
+// Space map: how many world units it shows across, and grid spacing.
+const MINIMAP_RANGE = 20000;
+const MINIMAP_GRID = 2500;
+
 function drawMinimap(ctx, ship, moon, width, height, earth = null) {
   const panelWidth = 220;
   const panelHeight = 235;
@@ -430,13 +434,40 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null) {
   const mapCenterX = mapX + mapSize / 2;
   const mapCenterY = mapY + mapSize / 2;
 
-  const scale = mapSize / CONFIG.worldSize;
+  // The map is centred on the SHIP and scrolls with it.
+  // It shows MINIMAP_RANGE world units across.
+  const scale = mapSize / MINIMAP_RANGE;
 
-  const shipX = mapCenterX + ship.x * scale;
-  const shipY = mapCenterY + ship.y * scale;
+  // World position -> map position (relative to the ship).
+  const toMap = (worldX, worldY) => ({
+    x: mapCenterX + wrap(worldX - ship.x, CONFIG.worldSize) * scale,
+    y: mapCenterY + wrap(worldY - ship.y, CONFIG.worldSize) * scale
+  });
 
-  const moonX = mapCenterX + moon.x * scale;
-  const moonY = mapCenterY + moon.y * scale;
+  // Keeps a marker inside the map. Off-map objects sit on the edge.
+  const edge = 7;
+  const clampToMap = point => {
+    const inside =
+      point.x >= mapX + edge && point.x <= mapX + mapSize - edge &&
+      point.y >= mapY + edge && point.y <= mapY + mapSize - edge;
+
+    if (inside) return { ...point, offMap: false };
+
+    // Move along the line from the centre until it hits the edge.
+    const dx = point.x - mapCenterX;
+    const dy = point.y - mapCenterY;
+    const half = mapSize / 2 - edge;
+    const t = half / Math.max(Math.abs(dx), Math.abs(dy));
+
+    return {
+      x: mapCenterX + dx * t,
+      y: mapCenterY + dy * t,
+      offMap: true
+    };
+  };
+
+  const moonPoint = clampToMap(toMap(moon.x, moon.y));
+  const earthPoint = earth ? clampToMap(toMap(earth.x, earth.y)) : null;
 
   const dx = moon.x - ship.x;
   const dy = moon.y - ship.y;
@@ -474,73 +505,73 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null) {
   ctx.rect(mapX, mapY, mapSize, mapSize);
   ctx.clip();
 
-  // Grid.
+  // Grid fixed to the world, so it scrolls past as the ship moves.
   ctx.strokeStyle = 'rgba(130, 145, 130, 0.18)';
   ctx.lineWidth = 1;
 
-  for (let i = 1; i < 4; i++) {
-    const offset = mapSize * i / 4;
+  const gridStep = MINIMAP_GRID * scale;
+  const startX = mapCenterX - (((ship.x % MINIMAP_GRID) + MINIMAP_GRID) % MINIMAP_GRID) * scale;
+  const startY = mapCenterY - (((ship.y % MINIMAP_GRID) + MINIMAP_GRID) % MINIMAP_GRID) * scale;
 
+  for (let x = startX - gridStep * 10; x <= mapX + mapSize; x += gridStep) {
+    if (x < mapX) continue;
     ctx.beginPath();
-    ctx.moveTo(mapX + offset, mapY);
-    ctx.lineTo(mapX + offset, mapY + mapSize);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(mapX, mapY + offset);
-    ctx.lineTo(mapX + mapSize, mapY + offset);
+    ctx.moveTo(x, mapY);
+    ctx.lineTo(x, mapY + mapSize);
     ctx.stroke();
   }
 
-  // Origin cross.
-  ctx.strokeStyle = 'rgba(160, 170, 150, 0.4)';
-  ctx.beginPath();
-  ctx.moveTo(mapCenterX, mapY);
-  ctx.lineTo(mapCenterX, mapY + mapSize);
-  ctx.moveTo(mapX, mapCenterY);
-  ctx.lineTo(mapX + mapSize, mapCenterY);
-  ctx.stroke();
+  for (let y = startY - gridStep * 10; y <= mapY + mapSize; y += gridStep) {
+    if (y < mapY) continue;
+    ctx.beginPath();
+    ctx.moveTo(mapX, y);
+    ctx.lineTo(mapX + mapSize, y);
+    ctx.stroke();
+  }
 
-  // Route line.
+  // Route line from the ship (centre) to the Moon.
   ctx.strokeStyle = 'rgba(170, 190, 150, 0.55)';
   ctx.setLineDash([4, 4]);
   ctx.beginPath();
-  ctx.moveTo(shipX, shipY);
-  ctx.lineTo(moonX, moonY);
+  ctx.moveTo(mapCenterX, mapCenterY);
+  ctx.lineTo(moonPoint.x, moonPoint.y);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Earth marker.
-  if (earth) {
-    ctx.fillStyle = '#4f8fc4';
+  // Planet marker: filled when on the map, hollow ring on the edge when off it.
+  const drawPlanetMarker = (point, color, size) => {
     ctx.beginPath();
-    ctx.arc(
-      mapCenterX + earth.x * scale,
-      mapCenterY + earth.y * scale,
-      4,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-  }
+    ctx.arc(point.x, point.y, size, 0, Math.PI * 2);
 
-  // Moon marker.
-  ctx.fillStyle = '#c7c9bd';
-  ctx.beginPath();
-  ctx.arc(moonX, moonY, 5, 0, Math.PI * 2);
-  ctx.fill();
+    if (point.offMap) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    } else {
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+  };
 
-  ctx.strokeStyle = '#e0e4d2';
-  ctx.stroke();
+  if (earthPoint) drawPlanetMarker(earthPoint, '#4f8fc4', 4);
+  drawPlanetMarker(moonPoint, '#c7c9bd', 5);
 
-  // Ship marker.
+  // Ship marker: always in the centre, pointing where the ship faces.
+  ctx.save();
+  ctx.translate(mapCenterX, mapCenterY);
+  ctx.rotate(ship.angle);
   ctx.fillStyle = '#86c7b4';
-  ctx.beginPath();
-  ctx.arc(shipX, shipY, 4, 0, Math.PI * 2);
-  ctx.fill();
-
   ctx.strokeStyle = '#d1e9d9';
+  ctx.beginPath();
+  ctx.moveTo(7, 0);
+  ctx.lineTo(-5, -4.5);
+  ctx.lineTo(-3, 0);
+  ctx.lineTo(-5, 4.5);
+  ctx.closePath();
+  ctx.fill();
   ctx.stroke();
+  ctx.restore();
 
   ctx.restore();
 

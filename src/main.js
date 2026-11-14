@@ -13,6 +13,7 @@ import { isTypingTarget } from './input.js';
 import { createSpaceBackground } from './spaceBackground.js';
 import { runGaugeChallenge, isGaugeChallengeActive } from './gaugeChallenge.js';
 import { createStatsSection } from './inventoryStats.js';
+import { createShipConfigSection } from './shipConfigView.js';
 import { createLunarCrawlers } from './lunarCrawler.js';
 
 const canvas = document.querySelector('#space');
@@ -70,7 +71,16 @@ canvas.addEventListener('mousedown', (event) => {
   playerMeleeAttack();
 });
 
-// Ship + player stats in the B inventory (below the ship modules).
+// Ship Configuration in the B inventory: a live view of the real ship.
+// getShipSprite returns the same variable drawWorld() uses for the ship.
+moonSurface.scraps.inventorySections.push(createShipConfigSection({
+  assets,
+  getSlots: () => partsSystem.getSlotInfo(),
+  getShipSprite: () => shipSprite,
+  getShipRarity: () => partsSystem.getStats().shipRarity
+}));
+
+// Ship + player stats in the B inventory (below the ship configuration).
 moonSurface.scraps.inventorySections.push(createStatsSection({
   survival,
   getModuleStats: () => partsSystem.getStats(),

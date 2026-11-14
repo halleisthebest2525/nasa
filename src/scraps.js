@@ -14,6 +14,8 @@ export class ScrapSystem {
     this.items = [];
     this.inventory = [];
     this.inventoryOpen = false;
+    // Extra inventory sections added by other systems (ship config, stats).
+    this.inventorySections = [];
     this.pickupMessage = '';
     this.pickupTimer = 0;
     this.credits = 0;
@@ -229,7 +231,8 @@ export class ScrapSystem {
     ctx.textAlign = 'center';
     ctx.font = 'bold 13px monospace';
     ctx.fillStyle = '#d5dfb4';
-    ctx.fillText(this.pickupMessage, width / 2, 42);
+    // Below the SHIP TIME / HULL INTEGRITY boxes (they end at ~147px).
+    ctx.fillText(this.pickupMessage, width / 2, 178);
     ctx.restore();
   }
 
@@ -247,7 +250,7 @@ export class ScrapSystem {
       0
     );
 
-    const panelWidth = Math.min(560, width - 36);
+    const panelWidth = Math.min(620, width - 36);
     const panelHeight = SECTIONS_TOP + sectionsHeight + 30;
     const x = (width - panelWidth) / 2;
     // Keep the panel below the clock / hull boxes at the top when it fits.

@@ -44,13 +44,23 @@ function randomRange(min, max) {
   return min + Math.random() * (max - min);
 }
 
-// The Moon only has common, rare and epic modules.
-// Drop chances: common 70%, rare 27%, epic 3%.
-function rollRarity() {
-  const roll = Math.random() * 100;
+// RARITY ODDS PER DESTINATION (percent, each row adds up to 100).
+// Part type is picked separately: all 5 types are equally likely (20%).
+// So exact-part odds = 20% x rarity odds (Moon common engine = 14%).
+// Add Mars, Europa, Titan, Umbriel here later.
+const PLANET_RARITY_ODDS = {
+  moon: { common: 70, rare: 27, epic: 3, mythic: 0, legendary: 0 }
+};
 
-  if (roll >= 97) return 'epic';
-  if (roll >= 70) return 'rare';
+function rollRarity(planet = 'moon') {
+  const odds = PLANET_RARITY_ODDS[planet] || PLANET_RARITY_ODDS.moon;
+  let roll = Math.random() * 100;
+
+  for (const [rarity, chance] of Object.entries(odds)) {
+    if (roll < chance) return rarity;
+    roll -= chance;
+  }
+
   return 'common';
 }
 

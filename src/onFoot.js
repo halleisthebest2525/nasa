@@ -20,8 +20,9 @@ const COMPUTER = {
   y: -267
 };
 
-// The ship interior is lit, so the player sees much more of it.
-const VISIBILITY_RADIUS = 280;
+// The ship interior is lit, so the player sees all of it.
+const SHIP_INTERIOR_DARKNESS = false;
+const VISIBILITY_RADIUS = 280; // only used if the darkness is turned back on
 
 const BED = {
   x: -350,
@@ -506,6 +507,10 @@ export class OnFoot {
   }
 
   drawVisibility(ctx, width, height) {
+    // The ship interior is fully lit: maximum field of view, no darkness.
+    // (Set SHIP_INTERIOR_DARKNESS to true to bring the old dark circle back.)
+    if (!SHIP_INTERIOR_DARKNESS) return;
+
     const radius = VISIBILITY_RADIUS;
     const fade = 65;
 

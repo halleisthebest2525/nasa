@@ -18,6 +18,8 @@ import { createLunarCrawlers } from './lunarCrawler.js';
 import { createChestQuest } from './chestQuest.js';
 import { PLANETS } from './planets.js';
 import { createMarsMonsters } from './marsMonsters.js';
+import { createEarthBase } from './earthBase.js';
+import { createPlanetLog } from './planetLog.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -38,7 +40,21 @@ const spaceBackground = createSpaceBackground(assets);
 const chestQuest = createChestQuest({
   partsSystem,
   moonSurface,
-  showTransmission: (text, color) => showTransmission(text, color)
+  getPlanet: () => landedPlanet,
+  showTransmission: (text, color) => showTransmission(text, color),
+
+  // Planet beaten (all modules + chest): Earth calls the player home to
+  // refit the ship before the next destination.
+  onPlanetBeaten() {
+    setTimeout(() => {
+      showTransmission(
+        'INCOMING CALL · EARTH CONTROL\n' +
+        'GOOD WORK OUT THERE, PILOT\n' +
+        'RETURN TO EARTH TO REFIT YOUR SHIP',
+        '#8fc3e8'
+      );
+    }, 7000);
+  }
 });
 moonSurface.chestQuest = chestQuest;
 
@@ -48,6 +64,40 @@ moonSurface.enemies = crawlers;
 
 // Mars enemies: Dust Stalkers + the Ares Colossus boss (not saved, except
 // whether the boss has been defeated).
+// EARTH SHIPYARD: repair / restore the ship and fit collected parts.
+const earthBase = createEarthBase({
+  partsSystem,
+  restoreShip() {
+    hull = hullMax;
+    updateHull();
+    survival.fuel = survival.maxFuel;
+    survival.shipOxygen = 100;
+    survival.oxygen = 100;
+  },
+  getShipSprite: () => shipSprite,
+  getShipRarity: () => partsSystem.getStats().shipRarity,
+  onLaunch: () => startEarthLaunch()
+});
+
+// PLANET LOG (P): beaten planets + module odds per planet.
+const planetLog = createPlanetLog({
+  getOdds: planet => partsSystem.getRarityOdds(planet),
+  getLocked: planet => partsSystem.getLockedRarities(planet),
+  isBeaten: planet => chestQuest.isBeaten(planet),
+  hasMap: planet => Boolean(chestQuest.getState().maps[planet]),
+  getModuleProgress(planet) {
+    const items =
+      planet === landedPlanet && landedOnMoon !== undefined && moonSurface.planet.id === planet
+        ? partsSystem.getParts().items
+        : planetStates[planet]?.partItems;
+
+    if (!items) return null;
+
+    const normal = items.filter(part => !part.reward);
+    return { found: normal.filter(part => part.collected).length, total: normal.length };
+  }
+});
+
 const marsMonsters = createMarsMonsters(assets, {
   onBossDefeated(x, y) {
     // The strongest Mars item: a guaranteed MYTHIC module where it fell.
@@ -96,6 +146,8 @@ function canUseMoonCombat(event) {
     !launchConfirmationOpen &&
     !sleepConfirmationOpen &&
     !isGaugeChallengeActive() &&
+    !earthBase.isOpen() &&
+    !planetLog.isOpen() &&
     !isTypingTarget(event)
   );
 }
@@ -171,12 +223,15 @@ function switchPlanet(id) {
   const stored = planetStates[id];
 
   if (stored) {
-    moonSurface.scraps.items = stored.scrapItems;
+    // Scrap may have been refreshed by a night's sleep (null = regenerate).
+    if (stored.scrapItems) moonSurface.scraps.items = stored.scrapItems;
+    else moonSurface.scraps.respawn(PLANETS[id]);
+
     partsSystem.getParts().items = stored.partItems;
     delete planetStates[id];
   } else {
     // First visit: fresh scrap and modules with this planet's odds.
-    moonSurface.scraps.respawn();
+    moonSurface.scraps.respawn(PLANETS[id]);
     partsSystem.respawn(id);
   }
 
@@ -542,7 +597,7 @@ function openComputer() {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
     moonSurface.scraps.inventoryOpen
   ) return;
 
@@ -767,8 +822,11 @@ function renderComputer() {
           <strong>LEVEL ${flashlightLevel} / ${FLASHLIGHT_MAX_LEVEL}</strong>
           <small>
             ${flashlightMaxed
-              ? 'MAXIMUM LEVEL · LONGEST BEAM'
-              : `${flashlightLevel === 0 ? 'LIGHT BEAM ON THE MOON · F TO TOGGLE' : 'LONGER, WIDER BEAM'} · ${flashlightPrice} CREDITS`}
+              ? `MAXIMUM LEVEL · BEAM ${BEAM_BASE_LENGTH + flashlightLevel * BEAM_LENGTH_PER_LEVEL}`
+              : `LEVEL ${flashlightLevel + 1}: BEAM ${flashlightLevel === 0 ? 0 : BEAM_BASE_LENGTH + flashlightLevel * BEAM_LENGTH_PER_LEVEL} → ${BEAM_BASE_LENGTH + (flashlightLevel + 1) * BEAM_LENGTH_PER_LEVEL} · F TO TOGGLE · ${flashlightPrice} CREDITS`}
+          </small>
+          <small style="color:#6f786c">
+            LV1 ${BEAM_BASE_LENGTH + BEAM_LENGTH_PER_LEVEL} · LV2 ${BEAM_BASE_LENGTH + 2 * BEAM_LENGTH_PER_LEVEL} · LV3 ${BEAM_BASE_LENGTH + 3 * BEAM_LENGTH_PER_LEVEL} · LV4 ${BEAM_BASE_LENGTH + 4 * BEAM_LENGTH_PER_LEVEL}
           </small>
           <button
             id="buy-flashlight"
@@ -777,7 +835,7 @@ function renderComputer() {
           >
             ${flashlightMaxed
               ? 'FULLY UPGRADED'
-              : flashlightLevel === 0 ? 'BUY FLASHLIGHT' : 'UPGRADE FLASHLIGHT'}
+              : flashlightLevel === 0 ? 'BUY FLASHLIGHT (LEVEL 1)' : `UPGRADE TO LEVEL ${flashlightLevel + 1}`}
           </button>
         </div>
 
@@ -1212,11 +1270,15 @@ function finishSleep() {
   onFoot.clearKeys();
   heldKeys.clear();
 
-  // A new day: fresh scrap and modules on the loaded planet. Other
-  // planets get fresh loot too (generated when you next land there).
-  moonSurface.scraps.respawn();
-  partsSystem.respawn(landedPlanet);
-  planetStates = {};
+  // A new day: fresh SCRAP on the loaded planet, and on other planets
+  // the next time you land there. Modules are NOT reset: the modules
+  // lying on each planet (and which ones you collected) stay as they were.
+  moonSurface.scraps.respawn(PLANETS[landedPlanet]);
+
+  for (const state of Object.values(planetStates)) {
+    state.scrapItems = null; // regenerated on the next landing
+  }
+
   crawlers.respawn(moonSurface.x, moonSurface.y);
   marsMonsters.respawn(moonSurface.x, moonSurface.y);
 
@@ -1325,7 +1387,7 @@ function updateLaunchButtons() {
 }
 
 function openLaunchConfirmation() {
-  if (launchConfirmationOpen || isGaugeChallengeActive() || gameOver || sleeping) return;
+  if (launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || gameOver || sleeping) return;
 
   launchConfirmationOpen = true;
   launchSelection = 0;
@@ -1406,7 +1468,7 @@ window.addEventListener('keydown', (event) => {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
     computerOpen
   ) return;
 
@@ -1444,7 +1506,7 @@ window.addEventListener('keydown', (event) => {
     sleeping ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1465,7 +1527,7 @@ window.addEventListener('keydown', (event) => {
     sleeping ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1494,7 +1556,7 @@ window.addEventListener('keydown', (event) => {
     sleeping ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1531,7 +1593,7 @@ window.addEventListener('keydown', (event) => {
     computerOpen ||
     gameOver ||
     sleeping ||
-    launchConfirmationOpen || isGaugeChallengeActive() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1626,8 +1688,9 @@ function startMoonLanding(planetId = 'moon') {
     title: `LAND ON ${planet.name}`,
     required: LANDING_REQUIRED,
     maxAttempts: LANDING_MAX_ATTEMPTS,
-    fillSeconds: 1.25,
-    zoneSize: Math.min(24, 13 * (moduleStats.landingAssist || 1)),
+    // Each planet has its own difficulty (Mars: faster, tighter zone).
+    fillSeconds: planet.landing?.fillSeconds || 1.25,
+    zoneSize: Math.min(24, (planet.landing?.zoneSize || 13) * (moduleStats.landingAssist || 1)),
     onAttempt(success) {
       if (!success) damageHullFromChallenge(LANDING_FAIL_DAMAGE);
       return !gameOver;
@@ -1655,6 +1718,7 @@ function startMoonLanding(planetId = 'moon') {
     ship.boosting = false;
 
     switchPlanet(planetId);
+    resetSurfaceUi();
 
     landedOnMoon = true;
     gameMode = 'moon';
@@ -1674,7 +1738,7 @@ window.addEventListener('keydown', (event) => {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen
   ) return;
@@ -1683,7 +1747,7 @@ window.addEventListener('keydown', (event) => {
 
   if (gameMode === 'driving') {
     // Which planet (if any) is close enough to land on?
-    const nearPlanet = ['moon', 'mars'].find(id => {
+    const nearPlanet = ['earth', 'moon', 'mars'].find(id => {
       const body = world[id];
       return body && Math.hypot(body.x - ship.x, body.y - ship.y) <= body.radius + 125;
     });
@@ -1696,6 +1760,9 @@ window.addEventListener('keydown', (event) => {
         'FIND THE CHEST ON THE MOON',
         '#d0704a'
       );
+    } else if (nearPlanet === 'earth') {
+      // EARTH: land at the shipyard to repair and refit.
+      startEarthLanding();
     } else if (nearPlanet) {
       // LAND: the landing gauge must be passed first.
       startMoonLanding(nearPlanet);
@@ -2008,7 +2075,7 @@ function drawSurvivalEquipment(context) {
       context.fillText(
         chestDistance !== null
           ? `CHEST: ${Math.round(chestDistance)}m`
-          : chestQuest.getState().marsMap ? 'CHEST: OPENED' : 'CHEST: NO SIGNAL',
+          : chestQuest.isBeaten(landedPlanet) ? 'CHEST: OPENED' : 'CHEST: NO SIGNAL',
         53,
         109
       );
@@ -2456,7 +2523,7 @@ window.NasarethGame = {
       computerOpen ||
       sleeping ||
       sleepConfirmationOpen ||
-      launchConfirmationOpen || isGaugeChallengeActive() ||
+      launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
       moonSurface.scraps.inventoryOpen
     ) return false;
 
@@ -2490,6 +2557,33 @@ window.NasarethGame = {
 
 window.dispatchEvent(new CustomEvent('nasareth:game-ready'));
 
+// PLANET LOG KEY (P) - Esc also closes it.
+window.addEventListener('keydown', (event) => {
+  if (isTypingTarget(event) || event.repeat) return;
+
+  if (event.key === 'Escape' && planetLog.isOpen()) {
+    event.preventDefault();
+    event.stopImmediatePropagation(); // don't also open the pause menu
+    planetLog.close();
+    return;
+  }
+
+  if (
+    event.code !== 'KeyP' ||
+    paused ||
+    gameOver ||
+    sleeping ||
+    computerOpen ||
+    earthBase.isOpen() ||
+    moonSurface.scraps.inventoryOpen ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
+    sleepConfirmationOpen
+  ) return;
+
+  event.preventDefault();
+  planetLog.toggle();
+});
+
 // PAUSE MENU SHORTCUT
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape' || event.repeat) return;
@@ -2499,7 +2593,7 @@ window.addEventListener('keydown', (event) => {
     computerOpen ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
     moonSurface.scraps.inventoryOpen
   ) return;
 
@@ -2512,6 +2606,93 @@ window.addEventListener('keydown', (event) => {
   ));
 });
 
+// EARTH LANDING: same gauge as the planets, but easier (home turf).
+function startEarthLanding() {
+  if (isGaugeChallengeActive() || gameOver) return;
+
+  ship.vx = 0;
+  ship.vy = 0;
+  ship.boosting = false;
+  minimapOpen = false;
+
+  runGaugeChallenge({
+    kicker: 'EARTH APPROACH · SHIPYARD DOCKING',
+    title: 'LAND ON EARTH',
+    required: LANDING_REQUIRED,
+    maxAttempts: LANDING_MAX_ATTEMPTS,
+    fillSeconds: 1.4,
+    zoneSize: Math.min(26, 18 * (moduleStats.landingAssist || 1)),
+    onAttempt(success) {
+      if (!success) damageHullFromChallenge(LANDING_FAIL_DAMAGE);
+      return !gameOver;
+    }
+  }).then(result => {
+    heldKeys.clear();
+
+    if (result.aborted || gameOver) return;
+
+    if (!result.success) {
+      showTransmission('DOCKING ABORTED\nPRESS E TO TRY AGAIN', '#e18b58');
+      return;
+    }
+
+    // Parked on the launch pad; the shipyard opens.
+    ship.x = world.earth.x;
+    ship.y = world.earth.y - world.earth.radius - 45;
+    ship.vx = 0;
+    ship.vy = 0;
+    ship.angle = -Math.PI / 2;
+    earthBase.open();
+  });
+}
+
+// Fresh UI when arriving on a planet: panels closed, detector off,
+// surface map open, old messages cleared.
+function resetSurfaceUi() {
+  moonSurface.scraps.closeInventory();
+  moonSurface.mapOpen = true;
+  moonSurface.scraps.pickupTimer = 0;
+  partsSystem.getParts().pickupTimer = 0;
+  survival.detectorOn = false;
+  survival.detectorLit = false;
+  survival.detectorFlash = 0;
+  minimapOpen = false;
+  if (planetLog.isOpen()) planetLog.close();
+}
+
+// The ENVIRONMENT panel (top right) shows where the player is.
+let lastEnvironment = '';
+
+function updateEnvironmentPanel() {
+  let title = 'DEEP SPACE';
+  let place = 'SECTOR 01';
+  let detail = 'Uncharted region';
+
+  if (earthBase.isOpen()) {
+    title = 'EARTH'; place = 'ORBITAL SHIPYARD'; detail = 'Repair and refit';
+  } else if (gameMode === 'moon') {
+    title = PLANETS[landedPlanet].name;
+    place = 'SURFACE';
+    detail = chestQuest.isBeaten(landedPlanet) ? 'Planet beaten' : 'Salvage in progress';
+  } else if (gameMode === 'walking') {
+    title = 'WAYFARER';
+    place = 'SHIP INTERIOR';
+    detail = landedOnMoon ? `Landed on ${PLANETS[landedPlanet].name.replace('THE ', '')}` : 'In flight';
+  }
+
+  const key = title + place + detail;
+  if (key === lastEnvironment) return;   // only touch the DOM when it changes
+  lastEnvironment = key;
+
+  const titleElement = document.querySelector('#environment-title');
+  const placeElement = document.querySelector('#environment-place');
+  const detailElement = document.querySelector('#environment-detail');
+
+  if (titleElement) titleElement.textContent = title;
+  if (placeElement) placeElement.textContent = place;
+  if (detailElement) detailElement.textContent = detail;
+}
+
 // MAIN LOOP
 function frame(time) {
   const dt = Math.min(
@@ -2522,7 +2703,7 @@ function frame(time) {
   previous = time;
 
   // The world is frozen while the launch / landing gauge is on screen.
-  if (!gameOver && !paused && !isGaugeChallengeActive()) {
+  if (!gameOver && !paused && !isGaugeChallengeActive() && !earthBase.isOpen() && !planetLog.isOpen()) {
     if (sleeping) {
       sleepTimer -= dt;
 
@@ -2740,6 +2921,7 @@ function frame(time) {
   );
 
   updateHud(ship, hull, survival, gameMode === 'moon' ? landedPlanet : gameMode);
+  updateEnvironmentPanel();
 
   requestAnimationFrame(frame);
 }

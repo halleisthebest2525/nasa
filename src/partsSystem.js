@@ -122,10 +122,14 @@ function rollRarity(planet = 'moon') {
 // Number of modules lying on the Moon at a time (balance setting).
 const PARTS_PER_MOON = 6;
 
+// Modules lying on each planet (Mars has a few more than the Moon).
+const PARTS_PER_PLANET = { moon: 6, mars: 7 };
+const partsCount = planet => PARTS_PER_PLANET[planet] || PARTS_PER_MOON;
+
 // Creates a fresh batch of modules scattered over the Moon.
 function createParts(planet = 'moon') {
   const parts = [];
-  const count = PARTS_PER_MOON;
+  const count = partsCount(planet);
   const batch = Date.now().toString(36);
 
   for (let i = 0; i < count; i++) {
@@ -271,11 +275,9 @@ export function attachPartsSystem(moonSurface) {
 
     parts.inventory.push(collected);
 
-    const installed = installPart(collected);
-
+    // Modules are NOT installed in the field: they are fitted at Earth.
     parts.pickupMessage =
-      `${part.rarity.toUpperCase()} ${TYPE_NAMES[part.type]}` +
-      (installed ? ' INSTALLED' : ' COLLECTED');
+      `${part.rarity.toUpperCase()} ${TYPE_NAMES[part.type]} COLLECTED · INSTALL AT EARTH`;
 
     parts.pickupTimer = 3;
 
@@ -326,7 +328,7 @@ export function attachPartsSystem(moonSurface) {
 
     const invalid =
       !Array.isArray(parts.items) ||
-      parts.items.filter(part => !part.reward).length > PARTS_PER_MOON ||
+      parts.items.filter(part => !part.reward).length > partsCount(planet) ||
       parts.items.some(part => !part.reward && !MOON_RARITIES.includes(part.rarity));
 
     if (invalid) {
@@ -455,6 +457,58 @@ export function attachPartsSystem(moonSurface) {
     ctx.restore();
   };
 
+  // A part's own effect as short text (same tables getStats() uses).
+  function partStat(type, rank) {
+    if (type === 'engine') {
+      return `SPD x${ENGINE_SPEED[rank].toFixed(2)} FUEL x${ENGINE_DRAIN[rank].toFixed(2)}`;
+    }
+    if (type === 'fuelTank') return `MAX FUEL ${FUEL_TANK[rank]}`;
+    if (type === 'energyModule') {
+      return `USE x${ENERGY_EFFICIENCY[rank].toFixed(2)} +${(ENERGY_PASSIVE[rank] * 60).toFixed(1)}/MIN`;
+    }
+    if (type === 'hullCargo') return `MAX HULL ${HULL[rank]}`;
+    return `LANDING ZONE x${LANDING_ASSIST[rank].toFixed(2)}`;
+  }
+
+  // EARTH SHIPYARD: what can be fitted in a slot = the stock BASE part
+  // plus every rarity of that type the player has collected.
+  function getSlotOptions(type) {
+    const owned = {};
+
+    for (const part of parts.inventory) {
+      if (part.type === type) owned[part.rarity] = (owned[part.rarity] || 0) + 1;
+    }
+
+    return ['base', ...Object.keys(owned)]
+      .filter((rarity, index, list) => list.indexOf(rarity) === index)
+      .sort((a, b) => (RARITIES[a]?.rank ?? 0) - (RARITIES[b]?.rank ?? 0))
+      .map(rarity => ({
+        rarity,
+        count: rarity === 'base' ? null : owned[rarity],
+        color: RARITIES[rarity]?.color || '#aeb4a9',
+        stat: partStat(type, RARITIES[rarity]?.rank ?? 0),
+        installed: parts.installed[type] === rarity
+      }));
+  }
+
+  // Fit a part (only at Earth). Returns false if the player doesn't own it.
+  function fitPart(type, rarity) {
+    if (!TYPES.includes(type)) return false;
+
+    const owned = rarity === 'base' ||
+      parts.inventory.some(part => part.type === type && part.rarity === rarity);
+
+    if (!owned) return false;
+
+    parts.installed[type] = rarity;
+
+    window.dispatchEvent(new CustomEvent('nasareth:modules-changed', {
+      detail: getStats()
+    }));
+
+    return true;
+  }
+
   // LIVE SLOT DATA for the Ship Configuration view in the B inventory.
   // Read straight from parts.installed every time, never a copy.
   function getSlotInfo() {
@@ -463,19 +517,7 @@ export function attachPartsSystem(moonSurface) {
       const rank = RARITIES[rarity]?.rank ?? 0;
 
       // This part's own effect (same tables getStats() uses).
-      let stat;
-
-      if (type === 'engine') {
-        stat = `SPD x${ENGINE_SPEED[rank].toFixed(2)} FUEL x${ENGINE_DRAIN[rank].toFixed(2)}`;
-      } else if (type === 'fuelTank') {
-        stat = `MAX FUEL ${FUEL_TANK[rank]}`;
-      } else if (type === 'energyModule') {
-        stat = `USE x${ENERGY_EFFICIENCY[rank].toFixed(2)} +${(ENERGY_PASSIVE[rank] * 60).toFixed(1)}/MIN`;
-      } else if (type === 'hullCargo') {
-        stat = `MAX HULL ${HULL[rank]}`;
-      } else {
-        stat = `LANDING ZONE x${LANDING_ASSIST[rank].toFixed(2)}`;
-      }
+      const stat = partStat(type, rank);
 
       return {
         type,
@@ -496,8 +538,16 @@ export function attachPartsSystem(moonSurface) {
     getInstalled: () => parts.installed,
     getNearestUncollected,
     getSlotInfo,
+    getSlotOptions,
+    fitPart,
+    typeName: type => TYPE_NAMES[type],
+    types: () => [...TYPES],
     respawn,
     fixMoonItems,
+
+    // For the planet log.
+    getRarityOdds: planet => (PLANET_RARITY_ODDS[planet] ? { ...PLANET_RARITY_ODDS[planet] } : null),
+    getLockedRarities: planet => [...(lockedRarities[planet] || [])],
 
     // Lock / unlock rarities on a planet (e.g. Mars mythic until the boss dies).
     setLockedRarities(planet, rarities) {

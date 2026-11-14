@@ -15,6 +15,10 @@ export const PLANETS = {
     ridges: 65,
     seed: 0,           // terrain seed offset (same seed = same terrain)
     enemies: 'moon',   // Lunar Crawlers live here
+    modules: 6,        // modules lying on the surface
+    // Scrap per day: count range and rarity mix (percent).
+    scrap: { min: 20, max: 30, common: 68, rare: 25, epic: 7 },
+    landing: { fillSeconds: 1.25, zoneSize: 13 },
     chestQuest: true,  // the Mars-map chest is on the Moon
     palette: {
       space: '#111211',
@@ -43,7 +47,12 @@ export const PLANETS = {
     ridges: 80,
     seed: 50000,
     enemies: 'mars',   // Dust Stalkers + Ares Colossus (boss)
-    chestQuest: false,
+    // A little more (and better) salvage than the Moon.
+    modules: 7,
+    scrap: { min: 25, max: 35, common: 55, rare: 33, epic: 12 },
+    // Harder landing: faster gauge, tighter green zone.
+    landing: { fillSeconds: 1.05, zoneSize: 9 },
+    chestQuest: true,  // the Europa-map chest is on Mars
     palette: {
       space: '#140d0b',
       ground: '#8a5a43',

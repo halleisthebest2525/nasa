@@ -139,6 +139,9 @@
     }
 
     #menu-jupiter img {
+      /* Two stacked frames: the top one fades in for a smooth crossfade. */
+      position: absolute;
+      inset: 0;
       display: block;
       width: 100%;
       height: 100%;
@@ -889,10 +892,10 @@
 
     <section class="hud-right panel">
       <div class="eyebrow">ENVIRONMENT</div>
-      <div class="environment-title">DEEP SPACE</div>
+      <div class="environment-title" id="environment-title">DEEP SPACE</div>
       <div class="environment-info">
         <span class="mission-dot"></span>
-        <div><b>SECTOR 01</b><small>Uncharted region</small></div>
+        <div><b id="environment-place">SECTOR 01</b><small id="environment-detail">Uncharted region</small></div>
       </div>
       <div class="environment-info">
         <span class="warning-dot"></span>
@@ -915,7 +918,8 @@
   <section id="main-menu">
     <!-- Animated Jupiter (32 frames, driven by src/menuJupiter.js) -->
     <div id="menu-jupiter" aria-hidden="true">
-      <img src="./img/jupiter/jupiter_001.png" alt="" draggable="false">
+      <img src="./img/jupiter/stable/jupiter_stable_01.png" alt="" draggable="false">
+      <img src="./img/jupiter/stable/jupiter_stable_02.png" alt="" draggable="false" style="opacity:0">
     </div>
 
     <header class="menu-header">

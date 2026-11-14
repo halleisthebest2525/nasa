@@ -1,24 +1,37 @@
 // ==========================================
-// CHEST QUEST (Moon)
-// 1. Collect all the modules lying on the Moon -> get the CHEST DETECTOR.
-// 2. A chest appears at a random spot. The detector (Q) shows its distance.
-// 3. Open the chest (walk onto it) -> MARS STAR MAP.
-// Mars itself is not built yet; marsMap just records that it is unlocked.
+// CHEST QUEST (every planet)
+// 1. Collect all the modules lying on a planet.
+//    (The first time, on the Moon, you also get the CHEST DETECTOR.)
+// 2. A chest appears on that planet. The detector (Q) shows its distance.
+// 3. Open the chest (walk onto it) -> the star map to the NEXT destination.
+//    Moon chest -> Mars map · Mars chest -> Europa map.
+// A planet counts as BEATEN once its chest has been opened.
 // ==========================================
 
-const SURFACE_RADIUS = 4800;
+import { PLANETS } from './planets.js';
+
 const CHEST_MIN_DISTANCE = 1200; // from the player when it appears
 const OPEN_DISTANCE = 50;
 
-// game = { partsSystem, moonSurface, showTransmission(text, color) }
+// Which star map each planet's chest gives, and its display name.
+export const CHEST_REWARDS = {
+  moon: { map: 'mars', name: 'MARS' },
+  mars: { map: 'europa', name: 'EUROPA (MOON OF JUPITER)' }
+};
+
+// game = { partsSystem, moonSurface, getPlanet(), showTransmission(text, color), onPlanetBeaten(planet) }
 export function createChestQuest(game) {
   const state = {
     chestDetector: false,
-    chest: null,      // { x, y } while waiting to be found
-    marsMap: false
+    chests: {},   // planet -> { x, y } while waiting to be found
+    opened: {},   // planet -> true once its chest was opened (= beaten)
+    maps: {}      // destination -> true once its star map was found
   };
 
-  function spawnChest() {
+  const planetNow = () => game.getPlanet();
+
+  function spawnChest(planet) {
+    const radius = PLANETS[planet]?.radius || 4800;
     const px = game.moonSurface.x;
     const py = game.moonSurface.y;
     let x = 0;
@@ -26,7 +39,7 @@ export function createChestQuest(game) {
 
     for (let tries = 0; tries < 300; tries++) {
       const angle = Math.random() * Math.PI * 2;
-      const distance = Math.sqrt(Math.random()) * SURFACE_RADIUS * 0.85;
+      const distance = Math.sqrt(Math.random()) * radius * 0.85;
 
       x = Math.cos(angle) * distance;
       y = Math.sin(angle) * distance;
@@ -34,24 +47,29 @@ export function createChestQuest(game) {
       if (Math.hypot(x - px, y - py) >= CHEST_MIN_DISTANCE) break;
     }
 
-    state.chest = { x: Math.round(x), y: Math.round(y) };
+    state.chests[planet] = { x: Math.round(x), y: Math.round(y) };
   }
 
   // Called whenever a module is picked up (and after loading a save).
   function checkModules() {
-    if (state.chestDetector) return;
+    const planet = planetNow();
 
-    const items = game.partsSystem.getParts().items;
+    // Only planets that have a chest, and only once per planet.
+    if (!CHEST_REWARDS[planet] || state.chests[planet] || state.opened[planet]) return;
+
+    // Boss rewards are extra: "all modules" means the planet's normal ones.
+    const items = game.partsSystem.getParts().items.filter(part => !part.reward);
     const allFound = items.length > 0 && items.every(part => part.collected);
 
     if (!allFound) return;
 
+    const firstDetector = !state.chestDetector;
     state.chestDetector = true;
-    spawnChest();
+    spawnChest(planet);
 
     game.showTransmission(
       'ALL MODULES RECOVERED\n' +
-      'CHEST DETECTOR ACQUIRED\n' +
+      (firstDetector ? 'CHEST DETECTOR ACQUIRED\n' : 'CHEST SIGNAL DETECTED ON THIS PLANET\n') +
       'PRESS Q TO TRACK THE SIGNAL',
       '#e0c78e'
     );
@@ -59,42 +77,48 @@ export function createChestQuest(game) {
 
   // Opens the chest when the player walks onto it.
   function update() {
-    if (!state.chest) return;
+    const planet = planetNow();
+    const chest = state.chests[planet];
 
-    const distance = Math.hypot(
-      state.chest.x - game.moonSurface.x,
-      state.chest.y - game.moonSurface.y
-    );
+    if (!chest) return;
+
+    const distance = Math.hypot(chest.x - game.moonSurface.x, chest.y - game.moonSurface.y);
 
     if (distance > OPEN_DISTANCE) return;
 
-    state.chest = null;
-    state.marsMap = true;
+    const reward = CHEST_REWARDS[planet];
+
+    state.chests[planet] = null;
+    state.opened[planet] = true;
+    state.maps[reward.map] = true;
 
     game.showTransmission(
       'CHEST OPENED\n' +
-      'MARS STAR MAP ACQUIRED\n' +
-      'ROUTE TO MARS UNLOCKED',
+      `${reward.name} STAR MAP ACQUIRED\n` +
+      'ROUTE UNLOCKED',
       '#ef9c66'
     );
+
+    if (game.onPlanetBeaten) game.onPlanetBeaten(planet);
   }
 
-  // Distance from the player to the chest, or null (no detector / no chest).
+  // Distance from the player to this planet's chest, or null.
   function getChestDistance() {
-    if (!state.chestDetector || !state.chest) return null;
+    const chest = state.chests[planetNow()];
 
-    return Math.hypot(
-      state.chest.x - game.moonSurface.x,
-      state.chest.y - game.moonSurface.y
-    );
+    if (!state.chestDetector || !chest) return null;
+
+    return Math.hypot(chest.x - game.moonSurface.x, chest.y - game.moonSurface.y);
   }
 
   // Small pixel-art chest, drawn in world space (hidden by the darkness).
   function draw(ctx, cameraX, cameraY, width, height) {
-    if (!state.chest) return;
+    const chest = state.chests[planetNow()];
 
-    const x = Math.round(cameraX + state.chest.x);
-    const y = Math.round(cameraY + state.chest.y);
+    if (!chest) return;
+
+    const x = Math.round(cameraX + chest.x);
+    const y = Math.round(cameraY + chest.y);
 
     if (x < -40 || y < -40 || x > width + 40 || y > height + 40) return;
 
@@ -127,17 +151,25 @@ export function createChestQuest(game) {
   }
 
   function load(data) {
+    state.chestDetector = false;
+    state.chests = {};
+    state.opened = {};
+    state.maps = {};
+
     if (!data || typeof data !== 'object') return;
 
     state.chestDetector = Boolean(data.chestDetector);
-    state.marsMap = Boolean(data.marsMap);
-    state.chest =
-      data.chest && Number.isFinite(data.chest.x) && Number.isFinite(data.chest.y)
-        ? { x: data.chest.x, y: data.chest.y }
-        : null;
 
-    // Had the detector but no chest and no map (should not happen): new chest.
-    if (state.chestDetector && !state.chest && !state.marsMap) spawnChest();
+    if (data.chests || data.opened || data.maps) {
+      // Current format.
+      state.chests = data.chests || {};
+      state.opened = data.opened || {};
+      state.maps = data.maps || {};
+    } else {
+      // Older saves: only the Moon chest existed.
+      if (data.chest && Number.isFinite(data.chest.x)) state.chests.moon = { ...data.chest };
+      if (data.marsMap) { state.maps.mars = true; state.opened.moon = true; }
+    }
   }
 
   return {
@@ -147,6 +179,15 @@ export function createChestQuest(game) {
     draw,
     save,
     load,
-    getState: () => state
+    // Shortcuts used around the game.
+    getState: () => ({
+      chestDetector: state.chestDetector,
+      marsMap: Boolean(state.maps.mars),
+      europaMap: Boolean(state.maps.europa),
+      opened: state.opened,
+      maps: state.maps,
+      chests: state.chests
+    }),
+    isBeaten: planet => Boolean(state.opened[planet])
   };
 }

@@ -81,7 +81,7 @@ export function drawWorld(
   drawShip(ctx, ship, width, height, sprite);
 
   // Landing prompt near the Moon or Mars.
-  for (const body of [world.moon, world.mars]) {
+  for (const body of [world.earth, world.moon, world.mars]) {
     if (!body) continue;
 
     if (Math.hypot(body.x - ship.x, body.y - ship.y) <= body.radius + 125) {

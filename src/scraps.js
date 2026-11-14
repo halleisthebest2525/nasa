@@ -22,17 +22,21 @@ export class ScrapSystem {
     this.generate();
   }
 
-  generate() {
-    const count = 20 + Math.floor(Math.random() * 11);
+  // planet = settings from planets.js (count, rarity mix, size).
+  generate(planet = null) {
+    const scrap = planet?.scrap || { min: 20, max: 30, common: 68, rare: 25, epic: 7 };
+    const radius = planet?.radius || SURFACE_RADIUS;
+
+    const count = scrap.min + Math.floor(Math.random() * (scrap.max - scrap.min + 1));
     const rarityPool = [
-      ...Array(68).fill('common'),
-      ...Array(25).fill('rare'),
-      ...Array(7).fill('epic')
+      ...Array(scrap.common).fill('common'),
+      ...Array(scrap.rare).fill('rare'),
+      ...Array(scrap.epic).fill('epic')
     ];
 
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const distance = Math.sqrt(Math.random()) * SURFACE_RADIUS * 0.88;
+      const distance = Math.sqrt(Math.random()) * radius * 0.88;
       const rarity = rarityPool[Math.floor(Math.random() * rarityPool.length)];
 
       this.items.push({
@@ -48,9 +52,9 @@ export class ScrapSystem {
   }
 
   // Replace all scrap on the surface with a fresh batch (each new day).
-  respawn() {
+  respawn(planet = null) {
     this.items = [];
-    this.generate();
+    this.generate(planet);
   }
 
   toggleInventory() {

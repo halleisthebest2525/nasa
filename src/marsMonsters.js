@@ -17,7 +17,7 @@ const SHIP_SAFE_RADIUS = 300;     // nobody chases you next to the ship
 const STALKER = {
   count: 8,
   scale: 0.72,           // 111x70 frame -> ~80 px wide
-  hp: 4,
+  hp: 6,                 // tougher than the Moon crawler (3)
   walkSpeed: 110,
   runSpeed: 170,         // player walks 190, runs 228
   runDistance: 230,      // runs when farther than this from the player
@@ -28,7 +28,7 @@ const STALKER = {
   giveUpRange: 850,
   attackRange: 56,
   hitRange: 74,
-  damage: 14,
+  damage: 18,            // crawler: 12
   attackCooldown: 1.0,
   damageFrame: 3,        // the slash frame
   bodyRadius: 24,

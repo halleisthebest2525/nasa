@@ -12,6 +12,16 @@ const TITLE_HEIGHT = 22;
 const SHIP_BOX = { width: 150, height: 112 };
 const PULSE_SECONDS = 1.2; // highlight when a slot's part changes
 
+// Same colours as the rarities in partsSystem.js.
+const RARITY_COLORS = {
+  base: '#aeb4a9',
+  common: '#b8b9ae',
+  rare: '#71b9e8',
+  epic: '#c18aff',
+  mythic: '#ef9c66',
+  legendary: '#f2d46f'
+};
+
 // game = {
 //   assets,
 //   getSlots(),       partsSystem.getSlotInfo()
@@ -120,7 +130,7 @@ export function createShipConfigSection(game) {
 
       ctx.textAlign = 'right';
       ctx.font = 'bold 11px monospace';
-      ctx.fillStyle = slots.find(s => s.rarity === shipRarity)?.color || '#aeb4a9';
+      ctx.fillStyle = RARITY_COLORS[shipRarity] || '#aeb4a9';
       ctx.fillText(`SHIP: ${shipRarity.toUpperCase()}`, x + panelWidth - 28, y + 10);
 
       const top = y + TITLE_HEIGHT;

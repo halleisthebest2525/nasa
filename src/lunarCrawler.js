@@ -5,8 +5,18 @@
 // ==========================================
 
 const SURFACE_RADIUS = 4800;
-const COUNT = 7;                 // crawlers on the Moon at once
+const COUNT = 10;                // crawlers on the Moon at once
 const MIN_SPAWN_DISTANCE = 700;  // from the ship and the player
+const SHIP_SAFE_DISTANCE = 500;  // respawns never appear next to the ship
+
+// Safe zone around the landed ship (the exit door puts you at 230).
+// Crawlers stop chasing you here and cannot walk into it.
+const SHIP_SAFE_RADIUS = 300;
+
+// After a crawler is killed, a new one appears this many seconds later,
+// somewhere the player cannot see (beyond their light).
+const RESPAWN_DELAY = 30;
+const RESPAWN_MARGIN = 250;      // extra distance beyond the player's view
 
 // One scale for every frame, so the crawler never changes size.
 const SPRITE_SCALE = 0.27;
@@ -14,8 +24,19 @@ const SPRITE_SCALE = 0.27;
 const MAX_HP = 3;
 const WALK_SPEED = 95;           // player walks 190, exhausted 85
 const ACCELERATION = 4;          // how fast velocity reaches its target
-const AGGRO_RANGE = 420;         // starts chasing
-const GIVE_UP_RANGE = 750;       // stops chasing
+// CRAWLER SENSES (different from the player's view on purpose):
+// - SIGHT: a cone in front of the crawler, longer than the player's
+//   own view without a flashlight (~170).
+// - NEARBY: always notices the player close by, from any direction.
+const SIGHT_RANGE = 480;
+const SIGHT_HALF_ANGLE = Math.PI / 3;   // 120° cone in total
+const NOTICE_RANGE = 220;
+const GIVE_UP_RANGE = 800;       // stops chasing beyond this
+
+// Idle crawlers look around (turn their cone) every few seconds.
+const LOOK_MIN_TIME = 2;
+const LOOK_MAX_TIME = 4.5;
+const LOOK_TURN_SPEED = 2;       // radians per second
 const ATTACK_RANGE = 52;         // starts an attack
 const HIT_RANGE = 68;            // attack still lands within this
 const ATTACK_DAMAGE = 12;        // player health
@@ -57,39 +78,109 @@ export function createLunarCrawlers(assets) {
   let swingTimer = 0;
   let swingAngle = 0;
 
+  // Seconds left until each pending respawn (one entry per kill).
+  let respawnTimers = [];
+
+  // Random point on the surface, at least minFromPlayer away from the
+  // player and away from the ship (Moon centre).
+  function randomSpawnPoint(playerX, playerY, minFromPlayer, minFromShip) {
+    let x = 0;
+    let y = 0;
+
+    for (let tries = 0; tries < 300; tries++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.sqrt(Math.random()) * SURFACE_RADIUS * 0.85;
+
+      x = Math.cos(angle) * distance;
+      y = Math.sin(angle) * distance;
+
+      if (
+        Math.hypot(x, y) >= minFromShip &&
+        Math.hypot(x - playerX, y - playerY) >= minFromPlayer
+      ) break;
+    }
+
+    return { x, y };
+  }
+
+  function createCrawler(x, y) {
+    const lookAngle = Math.random() * Math.PI * 2;
+
+    return {
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      hp: MAX_HP,
+      state: 'idle',
+      frame: Math.floor(Math.random() * 4), // not all in sync
+      frameTimer: Math.random() * 0.18,
+      facing: Math.cos(lookAngle) < 0 ? -1 : 1,
+      lookAngle,                  // where the sight cone points
+      lookTarget: lookAngle,
+      lookTimer: LOOK_MIN_TIME + Math.random() * LOOK_MAX_TIME,
+      alerted: false,             // true while chasing the player
+      cooldown: 0,
+      damageDone: false,
+      deathDone: false,
+      fade: 1
+    };
+  }
+
+  // Fills the Moon with a full group (game start, load, new day).
   function spawnAll(playerX = 0, playerY = 0) {
     crawlers = [];
+    respawnTimers = [];
 
     for (let i = 0; i < COUNT; i++) {
-      let x;
-      let y;
+      const point = randomSpawnPoint(playerX, playerY, MIN_SPAWN_DISTANCE, MIN_SPAWN_DISTANCE);
+      crawlers.push(createCrawler(point.x, point.y));
+    }
+  }
 
-      do {
-        const angle = Math.random() * Math.PI * 2;
-        const distance = Math.sqrt(Math.random()) * SURFACE_RADIUS * 0.85;
+  // Counts down respawn timers. Runs in every game mode (not only on the
+  // Moon), so "30 seconds later" is real game time.
+  // player = { x, y, viewDistance }
+  function tickRespawns(dt, player) {
+    if (respawnTimers.length === 0) return;
 
-        x = Math.cos(angle) * distance;
-        y = Math.sin(angle) * distance;
-      } while (
-        Math.hypot(x, y) < MIN_SPAWN_DISTANCE ||
-        Math.hypot(x - playerX, y - playerY) < MIN_SPAWN_DISTANCE
+    respawnTimers = respawnTimers.map(time => time - dt);
+
+    while (respawnTimers.length && respawnTimers[0] <= 0) {
+      respawnTimers.shift();
+
+      // Never more than COUNT alive (including dying ones).
+      if (crawlers.length >= COUNT) continue;
+
+      // Outside the player's view: beyond their light, plus a margin.
+      const minDistance = Math.max(
+        MIN_SPAWN_DISTANCE,
+        (player.viewDistance || 0) + RESPAWN_MARGIN
       );
 
-      crawlers.push({
-        x,
-        y,
-        vx: 0,
-        vy: 0,
-        hp: MAX_HP,
-        state: 'idle',
-        frame: Math.floor(Math.random() * 4), // not all in sync
-        frameTimer: Math.random() * 0.18,
-        facing: Math.random() < 0.5 ? -1 : 1,
-        cooldown: 0,
-        damageDone: false,
-        fade: 1
-      });
+      const point = randomSpawnPoint(player.x, player.y, minDistance, SHIP_SAFE_DISTANCE);
+      crawlers.push(createCrawler(point.x, point.y));
     }
+  }
+
+  // Turns an angle smoothly toward a target angle.
+  function turnToward(current, target, maxStep) {
+    let difference = target - current;
+    difference = Math.atan2(Math.sin(difference), Math.cos(difference));
+
+    if (Math.abs(difference) <= maxStep) return target;
+    return current + Math.sign(difference) * maxStep;
+  }
+
+  // Can this crawler notice the player right now?
+  function noticesPlayer(crawler, dx, dy, distance) {
+    if (distance <= NOTICE_RANGE) return true;   // close: always
+    if (distance > SIGHT_RANGE) return false;
+
+    let difference = Math.atan2(dy, dx) - crawler.lookAngle;
+    difference = Math.atan2(Math.sin(difference), Math.cos(difference));
+
+    return Math.abs(difference) <= SIGHT_HALF_ANGLE;   // inside the cone
   }
 
   function setState(crawler, state) {
@@ -177,9 +268,48 @@ export function createLunarCrawlers(assets) {
         }
       } else {
         // IDLE or WALK.
-        const chasing =
-          distance < AGGRO_RANGE ||
-          (crawler.state === 'walk' && distance < GIVE_UP_RANGE);
+
+        // Spot the player (sight cone, or always when close).
+        if (!crawler.alerted && noticesPlayer(crawler, dx, dy, distance)) {
+          crawler.alerted = true;
+        }
+
+        // Lose the player when they get far enough away.
+        if (crawler.alerted && distance > GIVE_UP_RANGE) {
+          crawler.alerted = false;
+        }
+
+        if (crawler.alerted) {
+          // Keep looking at the player while chasing.
+          crawler.lookAngle = Math.atan2(dy, dx);
+          crawler.lookTarget = crawler.lookAngle;
+        } else {
+          // Idle: look around now and then (turns the sight cone).
+          crawler.lookTimer -= dt;
+
+          if (crawler.lookTimer <= 0) {
+            crawler.lookTarget = crawler.lookAngle + (Math.random() - 0.5) * Math.PI * 1.6;
+            crawler.lookTimer = LOOK_MIN_TIME + Math.random() * (LOOK_MAX_TIME - LOOK_MIN_TIME);
+          }
+
+          crawler.lookAngle = turnToward(crawler.lookAngle, crawler.lookTarget, LOOK_TURN_SPEED * dt);
+
+          if (Math.abs(Math.cos(crawler.lookAngle)) > 0.2) {
+            crawler.facing = Math.cos(crawler.lookAngle) < 0 ? -1 : 1;
+          }
+        }
+
+        // Near the ship is a safe zone: crawlers lose interest there.
+        if (Math.hypot(player.x, player.y) < SHIP_SAFE_RADIUS) {
+          crawler.alerted = false;
+        }
+
+        // While chasing (even when waiting for the next attack), face the player.
+        if (crawler.alerted && Math.abs(dx) > 8) {
+          crawler.facing = dx < 0 ? -1 : 1;
+        }
+
+        const chasing = crawler.alerted;
 
         if (distance <= ATTACK_RANGE && crawler.cooldown <= 0) {
           crawler.facing = dx < 0 ? -1 : 1;
@@ -240,6 +370,12 @@ export function createLunarCrawlers(assets) {
         a.x = a.x / fromCenter * limit;
         a.y = a.y / fromCenter * limit;
       }
+
+      // Crawlers cannot walk into the ship's safe zone (the ship is at 0,0).
+      if (fromCenter < SHIP_SAFE_RADIUS && fromCenter > 0.01) {
+        a.x = a.x / fromCenter * SHIP_SAFE_RADIUS;
+        a.y = a.y / fromCenter * SHIP_SAFE_RADIUS;
+      }
     }
 
     // Remove crawlers whose death animation has fully faded.
@@ -270,6 +406,7 @@ export function createLunarCrawlers(assets) {
       if (Math.abs(difference) > PLAYER_ATTACK_ARC && distance > 30) continue;
 
       crawler.hp -= 1;
+      crawler.alerted = true; // getting hit always makes it chase you
 
       // Knockback away from the player.
       const length = distance || 1;
@@ -278,6 +415,9 @@ export function createLunarCrawlers(assets) {
 
       if (crawler.hp <= 0) {
         setState(crawler, 'death');
+
+        // A replacement appears RESPAWN_DELAY seconds after this kill.
+        respawnTimers.push(RESPAWN_DELAY);
       } else {
         crawler.state = 'idle'; // force a fresh hit animation
         setState(crawler, 'hit');
@@ -358,6 +498,17 @@ export function createLunarCrawlers(assets) {
     drawSwing,
     playerAttack,
     respawn: spawnAll,
-    count: () => crawlers.length
+    tickRespawns,
+    count: () => crawlers.length,
+
+    // Read-only snapshot for testing / debugging.
+    list: () => crawlers.map(c => ({
+      x: Math.round(c.x),
+      y: Math.round(c.y),
+      state: c.state,
+      hp: c.hp,
+      alerted: c.alerted
+    })),
+    pendingRespawns: () => respawnTimers.map(time => Math.round(time * 10) / 10)
   };
 }

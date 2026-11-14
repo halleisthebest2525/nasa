@@ -1011,6 +1011,11 @@ function finishSleep() {
   gameMinutes = 7 * 60;
   clockAccumulator = 0;
 
+  // A night's rest heals the player (otherwise health could never recover).
+  survival.health = 100;
+  survival.stamina = 100;
+  survival.staminaExhausted = false;
+
   updateClockDisplay();
   sleepScreen.style.display = 'none';
 
@@ -2174,6 +2179,15 @@ window.NasarethGame = {
     previous = 0;
   },
 
+  // Read-only debug info about the Moon's crawlers (for testers).
+  debugCrawlers() {
+    return {
+      alive: crawlers.list(),
+      respawnsIn: crawlers.pendingRespawns(),
+      player: { x: Math.round(moonSurface.x), y: Math.round(moonSurface.y) }
+    };
+  },
+
   isPaused() {
     return paused;
   }
@@ -2219,6 +2233,14 @@ function frame(time) {
 
       if (sleepTimer <= 0) finishSleep();
     } else {
+      // Killed crawlers come back 30 s later, out of the player's view.
+      // The view is the flashlight beam if on, else the small glow (~170).
+      crawlers.tickRespawns(dt, {
+        x: moonSurface.x,
+        y: moonSurface.y,
+        viewDistance: moonSurface.flashlight ? moonSurface.flashlight.length : 170
+      });
+
       clockAccumulator += dt * 2;
 
       while (clockAccumulator >= 1) {
@@ -2330,6 +2352,9 @@ function frame(time) {
   }
 
   updateParticles(dt);
+
+  // Hurt flash fades in every mode (it used to freeze if you left the Moon).
+  playerHurtFlash = Math.max(0, playerHurtFlash - dt * 2.5);
   drawBackground(pixelCtx, width, height);
 
   if (gameMode === 'driving') {
@@ -2370,7 +2395,6 @@ function frame(time) {
     if (playerHurtFlash > 0) {
       pixelCtx.fillStyle = `rgba(160, 20, 20, ${0.35 * playerHurtFlash})`;
       pixelCtx.fillRect(0, 0, width, height);
-      playerHurtFlash = Math.max(0, playerHurtFlash - dt * 2.5);
     }
   } else {
     onFoot.draw(pixelCtx, width, height);

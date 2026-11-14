@@ -225,6 +225,10 @@ function release() {
 
 overlay.addEventListener('pointerdown', event => {
   event.preventDefault();
+
+  // Left mouse button / touch / pen only (right-click used to count too).
+  if (event.button !== 0) return;
+
   press();
 });
 

@@ -15,12 +15,34 @@ export class World {
       })
     );
 
+    // Earth: the launch site, just below the starting position.
+    this.earth = {
+      x: 0,
+      y: 200,
+      radius: 140,
+      name: 'EARTH'
+    };
+
+    // Keep asteroids out of the launch area around Earth and the start.
+    const SAFE_RADIUS = 900;
+
+    const randomAsteroidPosition = () => {
+      let x;
+      let y;
+
+      do {
+        x = random(-half, half);
+        y = random(-half, half);
+      } while (Math.hypot(x, y) < SAFE_RADIUS);
+
+      return { x, y };
+    };
+
     this.asteroids = Array.from(
       { length: CONFIG.asteroidCount },
       (_, id) => ({
         id,
-        x: random(-half, half),
-        y: random(-half, half),
+        ...randomAsteroidPosition(),
         size: Math.floor(random(24, 65)),
         rotation: random(0, Math.PI * 2),
         shade: Math.floor(random(0, 3))

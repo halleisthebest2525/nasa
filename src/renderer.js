@@ -50,6 +50,24 @@ export function drawWorld(
   ctx.drawImage(objectLayer, 0, 0);
   ctx.restore();
 
+  // Earth is big and sunlit, so it stays visible outside the darkness.
+  if (world.earth) {
+    const earthDX = wrap(world.earth.x - ship.x, CONFIG.worldSize);
+    const earthDY = wrap(world.earth.y - ship.y, CONFIG.worldSize);
+
+    if (
+      Math.abs(earthDX) < width / 2 + world.earth.radius + 40 &&
+      Math.abs(earthDY) < height / 2 + world.earth.radius + 40
+    ) {
+      drawEarth(
+        ctx,
+        width / 2 + earthDX,
+        height / 2 + earthDY,
+        world.earth.radius
+      );
+    }
+  }
+
   if (texturedBackground) {
     // Gently dim the far stars away from the rocket for atmosphere.
     drawSoftVignette(ctx, width, height);
@@ -71,7 +89,7 @@ export function drawWorld(
   }
 
   if (minimapOpen) {
-    drawMinimap(ctx, ship, world.moon, width, height);
+    drawMinimap(ctx, ship, world.moon, width, height, world.earth);
   }
 }
 
@@ -296,6 +314,89 @@ function drawMoon(ctx, x, y, radius) {
   ctx.restore();
 }
 
+// Pixel-style Earth: ocean, a few continents, clouds, thin atmosphere.
+function drawEarth(ctx, x, y, radius) {
+  ctx.save();
+  ctx.translate(Math.floor(x), Math.floor(y));
+
+  // Atmosphere glow.
+  ctx.shadowColor = 'rgba(110, 170, 230, 0.5)';
+  ctx.shadowBlur = 30;
+  ctx.fillStyle = '#1d4f7a';
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.clip();
+
+  // Ocean lighting.
+  const ocean = ctx.createRadialGradient(
+    -radius * 0.35, -radius * 0.4, radius * 0.1,
+    0, 0, radius
+  );
+  ocean.addColorStop(0, '#3f86b8');
+  ocean.addColorStop(0.6, '#235f8c');
+  ocean.addColorStop(1, '#0d2a42');
+  ctx.fillStyle = ocean;
+  ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+
+  // Continents (relative to radius so it scales).
+  const land = [
+    [-0.45, -0.35, 0.32, 0.22, 0.4],
+    [-0.2, 0.1, 0.22, 0.36, -0.3],
+    [0.35, -0.25, 0.28, 0.18, 0.2],
+    [0.45, 0.3, 0.2, 0.3, 0.6],
+    [-0.55, 0.45, 0.18, 0.12, 0]
+  ];
+
+  ctx.fillStyle = '#4f7d45';
+
+  for (const [lx, ly, rx, ry, rot] of land) {
+    ctx.beginPath();
+    ctx.ellipse(lx * radius, ly * radius, rx * radius, ry * radius, rot, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Clouds.
+  ctx.fillStyle = 'rgba(235, 240, 240, 0.55)';
+
+  for (const [cx, cy, w] of [[-0.1, -0.6, 0.5], [0.3, 0.05, 0.4], [-0.5, 0.15, 0.3], [0.1, 0.6, 0.45]]) {
+    ctx.fillRect(cx * radius - (w * radius) / 2, cy * radius, w * radius, radius * 0.06);
+  }
+
+  // Night side shadow.
+  const night = ctx.createRadialGradient(
+    -radius * 0.4, -radius * 0.45, radius * 0.6,
+    0, 0, radius * 1.15
+  );
+  night.addColorStop(0, 'rgba(0,0,0,0)');
+  night.addColorStop(1, 'rgba(0,0,0,0.65)');
+  ctx.fillStyle = night;
+  ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+
+  ctx.restore();
+
+  // Thin atmosphere ring.
+  ctx.strokeStyle = 'rgba(140, 195, 240, 0.55)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius + 2, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = '#d8e4ee';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 13px monospace';
+  ctx.fillText('EARTH', 0, radius + 24);
+
+  ctx.restore();
+}
+
 function drawLandingPrompt(ctx, width, height) {
   const x = width / 2;
   const y = height / 2 + 95;
@@ -317,7 +418,7 @@ function drawLandingPrompt(ctx, width, height) {
   ctx.restore();
 }
 
-function drawMinimap(ctx, ship, moon, width, height) {
+function drawMinimap(ctx, ship, moon, width, height, earth = null) {
   const panelWidth = 220;
   const panelHeight = 235;
   const panelX = width - panelWidth - 25;
@@ -409,6 +510,20 @@ function drawMinimap(ctx, ship, moon, width, height) {
   ctx.stroke();
   ctx.setLineDash([]);
 
+  // Earth marker.
+  if (earth) {
+    ctx.fillStyle = '#4f8fc4';
+    ctx.beginPath();
+    ctx.arc(
+      mapCenterX + earth.x * scale,
+      mapCenterY + earth.y * scale,
+      4,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
+
   // Moon marker.
   ctx.fillStyle = '#c7c9bd';
   ctx.beginPath();
@@ -444,6 +559,16 @@ function drawMinimap(ctx, ship, moon, width, height) {
 
   ctx.fillStyle = '#aaa';
   ctx.fillText('MOON', panelX + 89, panelY + 214);
+
+  if (earth) {
+    ctx.fillStyle = '#4f8fc4';
+    ctx.beginPath();
+    ctx.arc(panelX + 135, panelY + 210, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#aaa';
+    ctx.fillText('EARTH', panelX + 145, panelY + 214);
+  }
 
   ctx.fillStyle = '#d5d3c8';
   ctx.font = '10px monospace';

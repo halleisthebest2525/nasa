@@ -11,6 +11,7 @@ import { attachPartsSystem } from './partsSystem.js';
 import { readSaves, writeSave, removeSave, applySnapshot } from './saveSystem.js';
 import { isTypingTarget } from './input.js';
 import { createSpaceBackground } from './spaceBackground.js';
+import { runGaugeChallenge, isGaugeChallengeActive } from './gaugeChallenge.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -346,7 +347,7 @@ function openComputer() {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen ||
+    launchConfirmationOpen || isGaugeChallengeActive() ||
     moonSurface.scraps.inventoryOpen
   ) return;
 
@@ -1056,7 +1057,7 @@ function updateLaunchButtons() {
 }
 
 function openLaunchConfirmation() {
-  if (launchConfirmationOpen || gameOver || sleeping) return;
+  if (launchConfirmationOpen || isGaugeChallengeActive() || gameOver || sleeping) return;
 
   launchConfirmationOpen = true;
   launchSelection = 0;
@@ -1129,7 +1130,7 @@ window.addEventListener('keydown', (event) => {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen ||
+    launchConfirmationOpen || isGaugeChallengeActive() ||
     computerOpen
   ) return;
 
@@ -1167,7 +1168,7 @@ window.addEventListener('keydown', (event) => {
     sleeping ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen ||
+    launchConfirmationOpen || isGaugeChallengeActive() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1198,7 +1199,7 @@ window.addEventListener('keydown', (event) => {
     computerOpen ||
     gameOver ||
     sleeping ||
-    launchConfirmationOpen ||
+    launchConfirmationOpen || isGaugeChallengeActive() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1213,6 +1214,117 @@ window.addEventListener('keydown', (event) => {
   event.preventDefault();
 });
 
+// ==========================================
+// EARTH LAUNCH AND MOON LANDING (GAUGE CHALLENGES)
+// ==========================================
+
+// Hull damage for each failed gauge attempt.
+const LAUNCH_FAIL_DAMAGE = 10;
+const LANDING_FAIL_DAMAGE = 8;
+
+// Moon landing: 3 successful burns needed within 10 attempts.
+const LANDING_REQUIRED = 3;
+const LANDING_MAX_ATTEMPTS = 10;
+
+// false until the player has launched from Earth (new game).
+let launchComplete = false;
+
+function damageHullFromChallenge(amount) {
+  hull = Math.max(0, hull - amount);
+  shake = 12;
+  updateHull(); // Shows the game-over screen if the hull reaches 0.
+}
+
+function startEarthLaunch() {
+  if (isGaugeChallengeActive() || gameOver) return;
+
+  // Sit on the launch pad above Earth, pointing up.
+  ship.x = world.earth.x;
+  ship.y = world.earth.y - world.earth.radius - 45;
+  ship.vx = 0;
+  ship.vy = 0;
+  ship.angle = -Math.PI / 2;
+  ship.boosting = false;
+  gameMode = 'driving';
+
+  runGaugeChallenge({
+    kicker: 'EARTH · LAUNCH CONTROL',
+    title: 'LAUNCH THE ROCKET',
+    required: 1,
+    maxAttempts: Infinity,
+    fillSeconds: 1.5,
+    zoneSize: 16,
+    onAttempt(success) {
+      if (!success) damageHullFromChallenge(LAUNCH_FAIL_DAMAGE);
+      return !gameOver;
+    }
+  }).then(result => {
+    if (!result.success) return;
+
+    launchComplete = true;
+
+    // Lift-off: push the rocket away from Earth.
+    ship.angle = -Math.PI / 2;
+    ship.vy = -130;
+    heldKeys.clear();
+
+    showTransmission(
+      'LIFT-OFF CONFIRMED\n' +
+      'COURSE SET FOR THE MOON · PRESS M FOR MAP',
+      '#8bd0b7'
+    );
+  });
+}
+
+function startMoonLanding() {
+  if (isGaugeChallengeActive() || gameOver) return;
+
+  ship.vx = 0;
+  ship.vy = 0;
+  ship.boosting = false;
+  minimapOpen = false;
+
+  runGaugeChallenge({
+    kicker: 'LUNAR APPROACH · DESCENT BURNS',
+    title: 'LAND ON THE MOON',
+    required: LANDING_REQUIRED,
+    maxAttempts: LANDING_MAX_ATTEMPTS,
+    fillSeconds: 1.25,
+    zoneSize: 13,
+    onAttempt(success) {
+      if (!success) damageHullFromChallenge(LANDING_FAIL_DAMAGE);
+      return !gameOver;
+    }
+  }).then(result => {
+    heldKeys.clear();
+
+    if (result.aborted || gameOver) return;
+
+    if (!result.success) {
+      showTransmission(
+        'LANDING ABORTED\n' +
+        'TOO MANY FAILED BURNS · RETURNING TO ORBIT\n' +
+        'PRESS E TO TRY AGAIN',
+        '#e18b58'
+      );
+      return;
+    }
+
+    // LANDED.
+    ship.x = world.moon.x;
+    ship.y = world.moon.y;
+    ship.vx = 0;
+    ship.vy = 0;
+    ship.boosting = false;
+
+    landedOnMoon = true;
+    gameMode = 'moon';
+    moonSurface.enter();
+
+    console.log('Landed on the Moon');
+  });
+}
+
 // MODE SWITCHING AND INTERACTION
 window.addEventListener('keydown', (event) => {
   if (
@@ -1223,7 +1335,7 @@ window.addEventListener('keydown', (event) => {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen ||
+    launchConfirmationOpen || isGaugeChallengeActive() ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen
   ) return;
@@ -1237,19 +1349,8 @@ window.addEventListener('keydown', (event) => {
     );
 
     if (moonDistance <= world.moon.radius + 125) {
-      // LAND ON THE MOON.
-      ship.x = world.moon.x;
-      ship.y = world.moon.y;
-      ship.vx = 0;
-      ship.vy = 0;
-      ship.boosting = false;
-
-      landedOnMoon = true;
-      minimapOpen = false;
-      gameMode = 'moon';
-      moonSurface.enter();
-
-      console.log('Landed on the Moon');
+      // LAND ON THE MOON: the landing gauge must be passed first.
+      startMoonLanding();
     } else {
       // ENTER SHIP INTERIOR.
       gameMode = 'walking';
@@ -1802,6 +1903,7 @@ function createSnapshot() {
     gameMinutes: sleeping ? 7 * 60 : gameMinutes,
     hull,
     landedOnMoon,
+    launchComplete,
 
     ship: {
       x: ship.x,
@@ -1903,6 +2005,9 @@ function loadPendingSave() {
 
     landedOnMoon = Boolean(save.landedOnMoon);
 
+    // Older saves have no launchComplete: they are already in space.
+    launchComplete = save.launchComplete !== false;
+
     if (gameMode === 'walking') onFoot.clearKeys();
     if (gameMode === 'moon') moonSurface.clearKeys();
 
@@ -1924,6 +2029,11 @@ function loadPendingSave() {
 
 loadPendingSave();
 
+// New game (or a save made before lift-off): start on Earth.
+if (!launchComplete && !gameOver) {
+  startEarthLaunch();
+}
+
 window.NasarethGame = {
   save: saveCurrentGame,
   saves: readSaves,
@@ -1935,7 +2045,7 @@ window.NasarethGame = {
       computerOpen ||
       sleeping ||
       sleepConfirmationOpen ||
-      launchConfirmationOpen ||
+      launchConfirmationOpen || isGaugeChallengeActive() ||
       moonSurface.scraps.inventoryOpen
     ) return false;
 
@@ -1964,7 +2074,7 @@ window.addEventListener('keydown', (event) => {
     computerOpen ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen ||
+    launchConfirmationOpen || isGaugeChallengeActive() ||
     moonSurface.scraps.inventoryOpen
   ) return;
 
@@ -1986,7 +2096,8 @@ function frame(time) {
 
   previous = time;
 
-  if (!gameOver && !paused) {
+  // The world is frozen while the launch / landing gauge is on screen.
+  if (!gameOver && !paused && !isGaugeChallengeActive()) {
     if (sleeping) {
       sleepTimer -= dt;
 

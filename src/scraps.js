@@ -236,10 +236,19 @@ export class ScrapSystem {
   drawInventory(ctx, width, height) {
     if (!this.inventoryOpen) return;
 
+    // Other systems (ship modules) can add a section below the scrap rows
+    // by setting this.inventoryExtension = { height, draw(ctx, x, y, w) }.
+    const extension = this.inventoryExtension;
+    const extraHeight = extension ? extension.height : 0;
+
     const panelWidth = Math.min(520, width - 36);
-    const panelHeight = 390;
+    const panelHeight = 390 + extraHeight;
     const x = (width - panelWidth) / 2;
-    const y = (height - panelHeight) / 2;
+    // Keep the panel below the clock / hull boxes at the top when it fits.
+    const topClear = 155;
+    const y = height - panelHeight >= topClear + 10
+      ? Math.max(topClear, (height - panelHeight) / 2)
+      : Math.max(10, (height - panelHeight) / 2);
     const counts = this.getInventoryCounts();
 
     ctx.save();
@@ -255,7 +264,7 @@ export class ScrapSystem {
     ctx.textAlign = 'left';
     ctx.fillStyle = '#d5dfb4';
     ctx.font = 'bold 21px monospace';
-    ctx.fillText('SCRAP INVENTORY', x + 28, y + 42);
+    ctx.fillText('INVENTORY', x + 28, y + 42);
 
     ctx.textAlign = 'right';
     ctx.fillStyle = '#e0c78e';
@@ -292,6 +301,12 @@ export class ScrapSystem {
       ctx.font = 'bold 17px monospace';
       ctx.fillText(`x ${counts[rarity]}`, x + panelWidth - 48, rowY + 10);
     });
+
+    if (extension) {
+      ctx.save();
+      extension.draw(ctx, x, y + 300, panelWidth);
+      ctx.restore();
+    }
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#e0c78e';

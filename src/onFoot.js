@@ -17,7 +17,8 @@ const COMPUTER = {
   y: -267
 };
 
-const VISIBILITY_RADIUS = 100;
+// The ship interior is lit, so the player sees much more of it.
+const VISIBILITY_RADIUS = 280;
 
 const BED = {
   x: -350,

@@ -208,7 +208,7 @@ const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1);
       this.drawMap(ctx, width);
     }
 
-    this.drawControls(ctx, height);
+    this.drawControls(ctx, width, height);
     this.scraps.drawPickupMessage(ctx, width);
     this.scraps.drawInventory(ctx, width, height);
 
@@ -590,7 +590,8 @@ const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1);
   }
 
   drawVisibility(ctx, width, height) {
-    const radius = 105;
+    // visibilityRadius is set by main.js from the flashlight level.
+    const radius = this.visibilityRadius || 105;
     const fade = 65;
 
     const centerX = width / 2;
@@ -748,17 +749,27 @@ const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1);
     ctx.restore();
   }
 
-  drawControls(ctx, height) {
+  // Control hints in the bottom-right corner, above the coordinates,
+  // so they don't overlap the survival panel on the left.
+  drawControls(ctx, width, height) {
     ctx.save();
 
-    ctx.textAlign = 'left';
+    ctx.textAlign = 'right';
     ctx.font = '11px monospace';
     ctx.fillStyle = 'rgba(220,220,205,0.7)';
 
-    ctx.fillText('WASD / ARROWS  MOVE', 22, height - 45);
-    ctx.fillText('SHIFT  RUN', 22, height - 27);
-    ctx.fillText('E  ENTER SHIP', 22, height - 9);
-    ctx.fillText('B  INVENTORY', 22, height - 63);
+    const lines = [
+      'WASD / ARROWS  MOVE',
+      'SHIFT  RUN',
+      'E  ENTER SHIP',
+      'B  INVENTORY',
+      'Q  METAL DETECTOR',
+      'M  MAP'
+    ];
+
+    lines.forEach((line, index) => {
+      ctx.fillText(line, width - 22, height - 160 + index * 18);
+    });
 
     ctx.restore();
   }

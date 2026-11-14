@@ -362,6 +362,87 @@ export function attachPartsSystem(moonSurface) {
     ctx.restore();
   };
 
+  // SHIP MODULES SECTION IN THE B INVENTORY
+  // One row per module slot: icon, name, installed rarity, collected count.
+  const MODULE_ROW_HEIGHT = 27;
+
+  moonSurface.scraps.inventoryExtension = {
+    height: 5 + TYPES.length * MODULE_ROW_HEIGHT,
+
+    draw(ctx, x, y, panelWidth) {
+      const stats = getStats();
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#d5dfb4';
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText('SHIP MODULES', x + 28, y + 10);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = RARITIES[stats.shipRarity]?.color || '#aeb4a9';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText(
+        `SHIP: ${stats.shipRarity.toUpperCase()}`,
+        x + panelWidth - 28,
+        y + 10
+      );
+
+      TYPES.forEach((type, index) => {
+        const rowY = y + 22 + index * MODULE_ROW_HEIGHT;
+        const rarity = parts.installed[type] || 'base';
+        const color = RARITIES[rarity]?.color || '#aeb4a9';
+
+        const collected = parts.inventory.filter(
+          part => part.type === type
+        ).length;
+
+        ctx.fillStyle = '#222a26';
+        ctx.fillRect(x + 25, rowY, panelWidth - 50, MODULE_ROW_HEIGHT - 4);
+        ctx.strokeStyle = '#424b43';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 25, rowY, panelWidth - 50, MODULE_ROW_HEIGHT - 4);
+
+        // Icon: the installed module's image, or a coloured dot for BASE.
+        const image =
+          moonSurface.assets[`${IMAGE_NAMES[type]}_${rarity}`];
+        const iconX = x + 45;
+        const iconY = rowY + (MODULE_ROW_HEIGHT - 4) / 2;
+
+        if (image && image.complete && image.naturalWidth > 0) {
+          const scale = Math.min(
+            20 / image.naturalWidth,
+            20 / image.naturalHeight
+          );
+          const w = image.naturalWidth * scale;
+          const h = image.naturalHeight * scale;
+
+          ctx.drawImage(image, iconX - w / 2, iconY - h / 2, w, h);
+        } else {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(iconX, iconY, 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillStyle = '#e0e1d8';
+        ctx.fillText(TYPE_NAMES[type], x + 64, iconY + 4);
+
+        ctx.fillStyle = color;
+        ctx.fillText(rarity.toUpperCase(), x + 210, iconY + 4);
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#a8ad9d';
+        ctx.font = '11px monospace';
+        ctx.fillText(
+          `COLLECTED x ${collected}`,
+          x + panelWidth - 40,
+          iconY + 4
+        );
+      });
+    }
+  };
+
   return {
     getStats,
     getParts: () => parts,

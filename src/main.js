@@ -53,6 +53,27 @@ const FUEL_PRICE = 30;
 const HULL_REPAIR_PRICE = 40;
 const HULL_REPAIR_AMOUNT = 20;
 
+// FLASHLIGHT: price of each level (index 0 = buying level 1).
+const FLASHLIGHT_PRICES = [60, 120, 200, 320];
+const FLASHLIGHT_MAX_LEVEL = FLASHLIGHT_PRICES.length;
+
+// Moon view radius: 105 with no flashlight, +45 per level (max 285).
+const MOON_VIEW_BASE = 105;
+const MOON_VIEW_PER_LEVEL = 45;
+
+function applyFlashlight() {
+  const level = Math.max(
+    0,
+    Math.min(FLASHLIGHT_MAX_LEVEL, Number(survival.flashlightLevel) || 0)
+  );
+
+  survival.flashlightLevel = level;
+  moonSurface.visibilityRadius =
+    MOON_VIEW_BASE + level * MOON_VIEW_PER_LEVEL;
+}
+
+applyFlashlight();
+
 let launchConfirmationOpen = false;
 let launchSelection = 0;
 
@@ -354,6 +375,12 @@ function renderComputer() {
   const totalItems = scraps.inventory.length;
   const totalValue = scraps.getInventoryValue();
 
+  const flashlightLevel = survival.flashlightLevel;
+  const flashlightMaxed = flashlightLevel >= FLASHLIGHT_MAX_LEVEL;
+  const flashlightPrice = flashlightMaxed
+    ? 0
+    : FLASHLIGHT_PRICES[flashlightLevel];
+
   let content = '';
 
   if (computerPage === 'home') {
@@ -534,6 +561,27 @@ function renderComputer() {
             REPAIR HULL
           </button>
         </div>
+
+        <div class="computer-item">
+          <span style="color:#f2e6a6">
+            ${flashlightLevel === 0 ? 'FLASHLIGHT' : 'FLASHLIGHT UPGRADE'}
+          </span>
+          <strong>LEVEL ${flashlightLevel} / ${FLASHLIGHT_MAX_LEVEL}</strong>
+          <small>
+            ${flashlightMaxed
+              ? 'MAXIMUM LEVEL · WIDEST MOON VIEW'
+              : `WIDER VIEW ON THE MOON · ${flashlightPrice} CREDITS`}
+          </small>
+          <button
+            id="buy-flashlight"
+            class="computer-button"
+            ${flashlightMaxed || credits < flashlightPrice ? 'disabled' : ''}
+          >
+            ${flashlightMaxed
+              ? 'FULLY UPGRADED'
+              : flashlightLevel === 0 ? 'BUY FLASHLIGHT' : 'UPGRADE FLASHLIGHT'}
+          </button>
+        </div>
       </div>
 
       <div style="
@@ -639,6 +687,7 @@ function renderComputer() {
   const buyFuelButton = computerScreen.querySelector('#buy-fuel');
   const buyOxygenButton = computerScreen.querySelector('#buy-oxygen');
   const buyRepairButton = computerScreen.querySelector('#buy-repair');
+  const buyFlashlightButton = computerScreen.querySelector('#buy-flashlight');
 
   if (sellButton) {
     sellButton.addEventListener('click', () => {
@@ -699,6 +748,18 @@ function renderComputer() {
       hull = Math.min(hullMax, hull + HULL_REPAIR_AMOUNT);
 
       updateHull();
+      renderComputer();
+    });
+  }
+
+  if (buyFlashlightButton) {
+    buyFlashlightButton.addEventListener('click', () => {
+      if (flashlightMaxed || scraps.credits < flashlightPrice) return;
+
+      scraps.credits -= flashlightPrice;
+      survival.flashlightLevel += 1;
+
+      applyFlashlight();
       renderComputer();
     });
   }
@@ -1760,7 +1821,8 @@ function createSnapshot() {
       staminaExhausted: survival.staminaExhausted,
       detectorOn: survival.detectorOn,
       detectorFlash: survival.detectorFlash,
-      detectorLit: survival.detectorLit
+      detectorLit: survival.detectorLit,
+      flashlightLevel: survival.flashlightLevel
     },
     moon: {
       x: moonSurface.x,
@@ -1844,6 +1906,9 @@ function loadPendingSave() {
 
     // Recalculate module stats and sprites without adding hull twice.
     updateModuleEffects(false);
+
+    // Older saves have no flashlight; applyFlashlight() treats that as 0.
+    applyFlashlight();
 
     updateClockDisplay();
     updateHull();

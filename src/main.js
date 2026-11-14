@@ -1274,71 +1274,121 @@ function drawParticles(context) {
     context.restore();
   }
 }
-function getNearestDetectorTarget() {
+function getNearestDetectorTargets() {
   const x = moonSurface.x;
   const y = moonSurface.y;
 
+  // Find nearest scrap.
   const nearestScrap =
     moonSurface.scraps.getNearestUncollected(x, y);
 
-  const nearestPart =
-    partsSystem.getNearestUncollected(x, y);
+  // Find nearest spaceship module.
+  const parts = partsSystem.getParts();
 
-  if (!nearestScrap && !nearestPart) return null;
+  let nearestModule = null;
+  let nearestModuleDistance = Infinity;
 
-  if (!nearestPart) {
-    return {
-      ...nearestScrap,
-      targetType: 'SCRAP'
-    };
+  for (const part of parts.items) {
+    if (part.collected) continue;
+
+    const distance = Math.hypot(
+      part.x - x,
+      part.y - y
+    );
+
+    if (distance < nearestModuleDistance) {
+      nearestModuleDistance = distance;
+      nearestModule = {
+        part,
+        distance
+      };
+    }
   }
 
-  if (!nearestScrap) {
-    return {
-      ...nearestPart,
-      targetType: 'MODULE'
-    };
-  }
-
-  return nearestPart.distance < nearestScrap.distance
-    ? { ...nearestPart, targetType: 'MODULE' }
-    : { ...nearestScrap, targetType: 'SCRAP' };
+  return {
+    scrap: nearestScrap,
+    module: nearestModule
+  };
 }
+// SURVIVAL EQUIPMENT DISPLAY
 // SURVIVAL EQUIPMENT DISPLAY
 function drawSurvivalEquipment(context) {
   // METAL DETECTOR
   if (gameMode === 'moon' && survival.detectorOn) {
-    const nearest = getNearestDetectorTarget();
+    const targets = getNearestDetectorTargets();
+
+    const scrap = targets.scrap;
+    const module = targets.module;
 
     context.save();
 
-    context.fillStyle = 'rgba(0,0,0,.8)';
-    context.fillRect(18, 18, 190, 52);
+    // Detector panel.
+    context.fillStyle = 'rgba(0,0,0,.88)';
+    context.fillRect(18, 18, 230, 83);
 
     context.strokeStyle = '#62665b';
-    context.strokeRect(18, 18, 190, 52);
+    context.strokeRect(18, 18, 230, 83);
 
+    // Title.
     context.fillStyle = '#c5c9b8';
     context.font = 'bold 11px monospace';
     context.textAlign = 'left';
+
     context.fillText('METAL DETECTOR [Q]', 30, 37);
 
+    // SCRAP SIGNAL.
     context.beginPath();
-    context.arc(39, 53, 5, 0, Math.PI * 2);
-    context.fillStyle = survival.detectorLit ? '#ff3028' : '#54201d';
+    context.arc(39, 57, 5, 0, Math.PI * 2);
+
+    context.fillStyle =
+      scrap && survival.detectorLit
+        ? '#ff3028'
+        : '#54201d';
+
     context.shadowColor = '#ff3028';
-    context.shadowBlur = survival.detectorLit ? 12 : 0;
+    context.shadowBlur =
+      scrap && survival.detectorLit ? 12 : 0;
+
     context.fill();
 
     context.shadowBlur = 0;
-    context.fillStyle = '#a8ad9d';
+
+    context.fillStyle = '#c5c9b8';
     context.font = '10px monospace';
+
     context.fillText(
-      nearest
-        ? `${nearest.targetType} ${Math.round(nearest.distance)}m`
-        : 'NO SIGNAL',
+      scrap
+        ? `SCRAP: ${Math.round(scrap.distance)}m`
+        : 'SCRAP: NO SIGNAL',
       53,
-      57
+      61
+    );
+
+    // MODULE SIGNAL.
+    context.beginPath();
+    context.arc(39, 81, 5, 0, Math.PI * 2);
+
+    context.fillStyle =
+      module && survival.detectorLit
+        ? '#ff3028'
+        : '#54201d';
+
+    context.shadowColor = '#ff3028';
+    context.shadowBlur =
+      module && survival.detectorLit ? 12 : 0;
+
+    context.fill();
+
+    context.shadowBlur = 0;
+
+    context.fillStyle = '#c5c9b8';
+
+    context.fillText(
+      module
+        ? `MODULE: ${Math.round(module.distance)}m`
+        : 'MODULE: NO SIGNAL',
+      53,
+      85
     );
 
     context.restore();
@@ -1382,7 +1432,13 @@ function drawSurvivalEquipment(context) {
       '#d5b66b'
     );
 
-    drawTank(width - 148, tankY + 55, 'OXYGEN TANK', survival.shipOxygen, '#77b9d4');
+    drawTank(
+      width - 148,
+      tankY + 55,
+      'OXYGEN TANK',
+      survival.shipOxygen,
+      '#77b9d4'
+    );
 
     context.restore();
   }
@@ -1811,15 +1867,19 @@ function frame(time) {
 
           survival.updateMoon(dt, isRunning());
 
-          const nearest = getNearestDetectorTarget();
-            survival.updateDetector(
-              dt,
-              nearest ? nearest.distance : null
-            );
-          survival.updateDetector(
-            dt,
-            nearest ? nearest.distance : null
-          );
+          const targets = getNearestDetectorTargets();
+
+          const distances = [
+            targets.scrap?.distance,
+            targets.module?.distance
+          ].filter(Number.isFinite);
+
+          const nearestDistance = distances.length
+            ? Math.min(...distances)
+            : null;
+
+          // Update the detector only ONCE per frame.
+          survival.updateDetector(dt, nearestDistance);
 
           if (survival.health <= 0) {
             triggerLifeSupportFailure();

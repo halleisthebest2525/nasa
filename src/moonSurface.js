@@ -848,6 +848,31 @@ export class MoonSurface {
     // Uncollected scrap markers.
     this.scraps.drawMap(ctx, cx, cy, scale);
 
+    // Monsters: red dots (the boss is a bigger dot with a ring).
+    if (this.enemies && this.enemies.list) {
+      const info = this.enemies.list();
+      const group = Array.isArray(info) ? info : info.stalkers || [];
+
+      ctx.fillStyle = '#e8483a';
+
+      for (const monster of group) {
+        if (monster.state === 'die' || monster.state === 'death') continue;
+        ctx.fillRect(Math.round(cx + monster.x * scale) - 2, Math.round(cy + monster.y * scale) - 2, 4, 4);
+      }
+
+      const boss = Array.isArray(info) ? null : info.boss;
+
+      if (boss && boss.state !== 'die') {
+        const bx = Math.round(cx + boss.x * scale);
+        const by = Math.round(cy + boss.y * scale);
+
+        ctx.fillRect(bx - 4, by - 4, 8, 8);
+        ctx.strokeStyle = '#ffd0c8';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx - 6.5, by - 6.5, 13, 13);
+      }
+    }
+
     // Player-to-ship direction line.
     ctx.strokeStyle = 'rgba(220,220,200,0.35)';
     ctx.setLineDash([4, 5]);
@@ -898,6 +923,11 @@ export class MoonSurface {
 
     ctx.fillStyle = '#f0e4b9';
     ctx.fillText('● YOU', x + 100, y + size - 13);
+
+    if (this.enemies) {
+      ctx.fillStyle = '#e8483a';
+      ctx.fillText('■ MONSTER', x + 180, y + size - 13);
+    }
 
     ctx.restore();
   }

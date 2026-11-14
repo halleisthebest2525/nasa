@@ -41,6 +41,8 @@ export function createEarthBase(game) {
     const rarity = game.getShipRarity();
     const sprite = game.getShipSprite();
 
+    const warpTargets = game.getWarpTargets ? game.getWarpTargets() : [];
+
     const slots = parts.types().map(type => {
       const options = parts.getSlotOptions(type).map(option => `
         <button
@@ -86,9 +88,21 @@ export function createEarthBase(game) {
         .earth-part-stat { color:#9fb0bb; font-size:10px; }
         .earth-part-tag { color:#7fbf6a; font-size:9px; letter-spacing:2px; }
         .earth-part:not(.fitted) .earth-part-tag { color:#5d7d94; }
+        .earth-stats { margin:4px 0 14px; padding:10px 12px; background:#0b1117; border:1px solid #2d3f4c; }
+        .earth-stats-title { font-size:11px; letter-spacing:2px; color:#8fb3cc; margin-bottom:6px; min-height:14px; }
+        .earth-stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:2px 18px; font-size:11px; }
+        .earth-stat { display:flex; justify-content:space-between; gap:8px; color:#9fb0bb; }
+        .earth-stat b { color:#e2ebf0; font-weight:normal; }
+        .earth-stat .up { color:#7fdc6a; font-weight:bold; }
+        .earth-stat .down { color:#ff7a66; font-weight:bold; }
         .earth-launch { width:100%; margin-top:18px; padding:14px; background:#3f6a8a; color:#eef6fb;
           border:1px solid #8fc3e8; font:bold 14px monospace; letter-spacing:3px; cursor:pointer; }
         .earth-launch:hover { background:#4f80a6; }
+        .earth-warp-title { margin-top:14px; font-size:11px; letter-spacing:2px; color:#8fb3cc; }
+        .earth-warp { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+        .earth-warp-go { flex:1; min-width:150px; padding:10px; background:#16283a; color:#e6f3fb;
+          border:1px solid #6fb6e6; font:bold 12px monospace; letter-spacing:2px; cursor:pointer; }
+        .earth-warp-go:hover { background:#1f3a54; }
       </style>
 
       <div class="earth-panel">
@@ -105,19 +119,68 @@ export function createEarthBase(game) {
           </div>
         </div>
 
+        <div class="earth-stats">
+          <div class="earth-stats-title" id="earth-stats-title"></div>
+          <div class="earth-stats-grid" id="earth-stats-grid"></div>
+        </div>
+
         ${slots}
 
         <button class="earth-launch" id="earth-launch">LAUNCH</button>
+
+        ${warpTargets.length ? `
+          <div class="earth-warp-title">OR WARP STRAIGHT TO A COMPLETED WORLD</div>
+          <div class="earth-warp">
+            ${warpTargets.map(target => `<button class="earth-warp-go" data-id="${target.id}">WARP · ${target.name}</button>`).join('')}
+          </div>` : ''}
       </div>
     `;
 
+    // SHIP STATS: the real numbers the game uses. Hover a part to see
+    // what fitting it would change (green = better, red = worse).
+    const statsTitle = screen.querySelector('#earth-stats-title');
+    const statsGrid = screen.querySelector('#earth-stats-grid');
+
+    const showStats = (type = null, rarity = null) => {
+      const installed = game.partsSystem.getInstalled();
+      const comparing = type && installed[type] !== rarity;
+      const rows = game.partsSystem.previewFit(type || 'engine', comparing ? rarity : installed[type || 'engine']);
+
+      statsTitle.innerHTML = comparing
+        ? `IF YOU FIT <b style="color:${RARITY_COLORS[rarity]}">${rarity.toUpperCase()} ${parts.typeName(type)}</b> (NOW: ${String(installed[type] || 'base').toUpperCase()})`
+        : 'SHIP STATS · HOVER A PART TO COMPARE';
+
+      statsGrid.innerHTML = rows.map(row => {
+        if (!comparing || row.change === 0) {
+          return `<div class="earth-stat"><span>${row.label}</span><b>${row.now}</b></div>`;
+        }
+
+        const look = row.change > 0 ? 'up' : 'down';
+
+        return `<div class="earth-stat"><span>${row.label}</span><span><b>${row.now}</b> → <span class="${look}">${row.next}</span></span></div>`;
+      }).join('');
+    };
+
+    showStats();
+
     screen.querySelectorAll('.earth-part').forEach(button => {
+      button.addEventListener('mouseenter', () => showStats(button.dataset.type, button.dataset.rarity));
+      button.addEventListener('mouseleave', () => showStats());
+      button.addEventListener('focus', () => showStats(button.dataset.type, button.dataset.rarity));
+
       button.addEventListener('click', () => {
         if (game.partsSystem.fitPart(button.dataset.type, button.dataset.rarity)) {
           // Repair/refuel again so a bigger tank / hull is filled up too.
           game.restoreShip();
           render();
         }
+      });
+    });
+
+    screen.querySelectorAll('.earth-warp-go').forEach(button => {
+      button.addEventListener('click', () => {
+        close();
+        game.onWarp(button.dataset.id);
       });
     });
 

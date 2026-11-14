@@ -20,6 +20,7 @@ const STING_VOLUME = 0.5;
 export function createMusic() {
   const paths = {};
   const players = {};   // situation -> Audio (created the first time it is needed)
+  const loops = {};     // name -> Audio for repeating sounds (footsteps)
   let current = null;
   let duck = 1;         // quieter while paused
   let retryTimer = 0;
@@ -82,6 +83,26 @@ export function createMusic() {
           audio.pause();   // keeps its position, so it resumes where it left off
         }
       }
+    },
+
+    // Is there a file for this name in music.txt?
+    has: name => Boolean(paths[name]),
+
+    // A sound that repeats while "on" is true (e.g. footsteps).
+    // Does nothing when music.txt has no entry with this name.
+    setLoop(name, on, volume = 0.4) {
+      if (!paths[name]) return;
+
+      if (!loops[name]) {
+        loops[name] = new Audio(paths[name]);
+        loops[name].loop = true;
+        loops[name].volume = volume;
+      }
+
+      const audio = loops[name];
+
+      if (on && audio.paused) audio.play().catch(() => {});
+      else if (!on && !audio.paused) audio.pause();
     },
 
     // Short one-shot sound on top of the music.

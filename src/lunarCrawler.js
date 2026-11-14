@@ -5,7 +5,7 @@
 // ==========================================
 
 const SURFACE_RADIUS = 4800;
-const COUNT = 10;                // crawlers on the Moon at once
+const COUNT = 13;                // crawlers on the Moon at once
 const MIN_SPAWN_DISTANCE = 700;  // from the ship and the player
 const SHIP_SAFE_DISTANCE = 500;  // respawns never appear next to the ship
 
@@ -30,7 +30,7 @@ const ACCELERATION = 4;          // how fast velocity reaches its target
 // - NEARBY: always notices the player close by, from any direction.
 const SIGHT_RANGE = 480;
 const SIGHT_HALF_ANGLE = Math.PI / 3;   // 120° cone in total
-const NOTICE_RANGE = 220;
+const NOTICE_RANGE = 260;
 const GIVE_UP_RANGE = 800;       // stops chasing beyond this
 
 // Idle crawlers look around (turn their cone) every few seconds.

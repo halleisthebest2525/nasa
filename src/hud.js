@@ -42,13 +42,21 @@ function resourceRow(label, value, color) {
   `;
 }
 
-export function updateHud(ship, hull = 100, survival = null, mode = 'driving', scraps = 0) {
-  const rpm = Math.min(Math.round(ship.speed * 25), 4500);
+// maxRpm = the fitted engine's maximum output (4500 for the stock engine).
+export function updateHud(ship, hull = 100, survival = null, mode = 'driving', scraps = 0, maxRpm = 4500) {
+  const rpm = Math.min(Math.round(ship.speed * 25), maxRpm);
 
-  if (speed) speed.textContent = String(rpm);
+  if (speed) {
+    speed.textContent = String(rpm);
+
+    // The small label next to the number shows this engine's maximum.
+    const unit = speed.nextElementSibling;
+    const unitText = `/ ${maxRpm} RPM`;
+    if (unit && unit.textContent !== unitText) unit.textContent = unitText;
+  }
 
   if (meter) {
-    meter.style.width = `${rpm / 4500 * 100}%`;
+    meter.style.width = `${rpm / maxRpm * 100}%`;
   }
 
   if (coords) {

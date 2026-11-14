@@ -20,7 +20,7 @@ const SHIP_SAFE_RADIUS = 300;     // nobody chases you next to the ship
 
 // ---------- FROST SKITTER ----------
 const SKITTER = {
-  count: 10,
+  count: 12,
   scale: 0.8,            // body is ~52 px wide
   hp: 8,                 // Mars stalker: 6
   walkSpeed: 135,
@@ -29,7 +29,7 @@ const SKITTER = {
   acceleration: 5,
   sightRange: 600,
   sightHalfAngle: Math.PI / 3,
-  noticeRange: 280,
+  noticeRange: 320,
   giveUpRange: 950,
   attackRange: 54,
   hitRange: 72,

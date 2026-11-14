@@ -38,29 +38,35 @@ const IMAGE_NAMES = {
 // ==========================================
 // MODULE STATS (balance chart) - EXPONENTIAL UPGRADES
 // Rank: 0 base · 1 common · 2 rare · 3 epic · 4 mythic · 5 legendary
-// Every tier multiplies the previous one by the same GROWTH factor, so
-// early (Moon) tiers are small steps and late tiers are big jumps.
+// Every tier multiplies the previous one by the same GROWTH factor.
+// The steps are big on purpose: a better module must be FELT.
 //
-//                      base  common  rare  epic  mythic  legendary
-// Engine speed  x1.08  1.00  1.08    1.17  1.26  1.36    1.47
-// Engine burn   x1.04  1.00  1.04    1.08  1.12  1.17    1.22  (cost)
-// Fuel tank     x1.25  100   125     156   195   244     305
-// Energy use    x0.92  1.00  0.92    0.85  0.78  0.72    0.66
-// Energy regen  x1.6   0     0.5     0.8   1.3   2.0     3.3   (fuel/min)
-// Hull & cargo  x1.25  100   125     156   195   244     305
-// Landing assist x1.10 1.00  1.10    1.21  1.33  1.46    1.61  (Control Center)
+//                       base  common  rare  epic  mythic  legendary
+// Engine power   x1.18  1.00  1.18    1.39  1.64  1.94    2.29   (top speed + thrust)
+// Engine burn    x1.07  1.00  1.07    1.14  1.23  1.31    1.40   (cost: fuel use)
+// Fuel tank      x1.35  100   135     182   246   332     448
+// Energy use     x0.88  1.00  0.88    0.77  0.68  0.60    0.53   (fuel use)
+// Energy regen   x1.6   0     0.5     0.8   1.3   2.0     3.3    (fuel/min)
+// Hull           x1.35  100   135     182   246   332     448
+// Cargo (med kits)      5     6       7     8     9       10
+// Landing assist x1.13  1.00  1.13    1.28  1.44  1.63    1.84   (Control Center)
 //
-// Full legendary ship: ~5.5x the travel range of a base ship, matching
-// destinations that get farther away (Moon 14k, Mars 24k, later more).
+// WEIGHT (trade-off): bigger tanks and stronger hulls are heavier.
+// A heavier ship accelerates more slowly (top speed is not affected:
+// there is no air in space). A better engine more than makes up for it.
+//   Frame 55 · Engine 15 · Energy 5 · Computer 5 (never change)
+//   Fuel tank  x1.15  10  11.5  13.2  15.2  17.5  20.1
+//   Hull       x1.15  20  23.0  26.5  30.4  35.0  40.2
 // ==========================================
 const GROWTH = {
-  engineSpeed: 1.08,
-  engineBurn: 1.04,
-  fuelTank: 1.25,
-  energyUse: 0.92,
+  engineSpeed: 1.18,
+  engineBurn: 1.07,
+  fuelTank: 1.35,
+  energyUse: 0.88,
   energyRegen: 1.6,
-  hull: 1.25,
-  landingAssist: 1.10
+  hull: 1.35,
+  landingAssist: 1.13,
+  mass: 1.15
 };
 
 const RANKS = [0, 1, 2, 3, 4, 5];
@@ -76,6 +82,119 @@ const ENERGY_PASSIVE = RANKS.map(rank =>
 const FUEL_TANK = RANKS.map(rank => Math.round(100 * GROWTH.fuelTank ** rank));
 const HULL = RANKS.map(rank => Math.round(100 * GROWTH.hull ** rank));
 const LANDING_ASSIST = curve(1, GROWTH.landingAssist);
+const CARGO_MEDKITS = RANKS.map(rank => 5 + rank);
+
+// Weight of each part (the frame, engine, energy module and computer
+// always weigh the same).
+const FRAME_MASS = 55;
+const PART_MASS = {
+  engine: RANKS.map(() => 15),
+  fuelTank: curve(10, GROWTH.mass),
+  energyModule: RANKS.map(() => 5),
+  hullCargo: curve(20, GROWTH.mass),
+  computer: RANKS.map(() => 5)
+};
+const BASE_MASS = FRAME_MASS + 15 + 10 + 5 + 20 + 5;   // a stock ship = 110
+
+// Engine gauge: a stock engine tops out at 4500 RPM.
+const BASE_MAX_RPM = 4500;
+
+const rankOf = rarity => RARITIES[rarity]?.rank ?? 0;
+
+// ==========================================
+// THE ONE PLACE SHIP STATS ARE CALCULATED.
+// installed = { engine: 'rare', fuelTank: 'base', ... } (rarity per slot).
+// Always worked out from scratch from the fitted parts, never added on
+// top of old numbers, so fitting a part twice can never stack.
+// Unknown / missing parts count as the stock BASE part.
+// ==========================================
+export function calculateShipStats(installed = {}) {
+  const rank = {};
+
+  for (const type of TYPES) rank[type] = rankOf(installed[type]);
+
+  const mass = FRAME_MASS + TYPES.reduce(
+    (total, type) => total + PART_MASS[type][rank[type]], 0
+  );
+
+  const enginePower = ENGINE_SPEED[rank.engine];
+
+  // Ship rarity (and sprite) is the average of all five modules,
+  // rounded down, so every upgrade counts.
+  const shipRank = Math.floor(
+    TYPES.reduce((total, type) => total + rank[type], 0) / TYPES.length
+  );
+
+  return {
+    shipRank,
+    shipRarity: Object.keys(RARITIES).find(
+      key => RARITIES[key].rank === shipRank
+    ) || 'base',
+
+    // ENGINE: top speed and thrust. A heavier ship accelerates slower.
+    enginePower,
+    maxSpeedMultiplier: enginePower,
+    accelerationMultiplier: enginePower * BASE_MASS / mass,
+    maxRpm: Math.round(BASE_MAX_RPM * enginePower / 10) * 10,
+
+    // ENGINE (burns more) x ENERGY MODULE (saves fuel).
+    fuelDrainMultiplier:
+      ENGINE_DRAIN[rank.engine] * ENERGY_EFFICIENCY[rank.energyModule],
+
+    // ENERGY MODULE: slowly makes fuel (per second).
+    passiveFuel: ENERGY_PASSIVE[rank.energyModule],
+
+    // FUEL TANK.
+    maxFuel: FUEL_TANK[rank.fuelTank],
+
+    // HULL & CARGO: durability and how many med kits fit in the hold.
+    maxHull: HULL[rank.hullCargo],
+    medkitCapacity: CARGO_MEDKITS[rank.hullCargo],
+
+    // CONTROL CENTER: makes the launch/landing green zone wider.
+    landingAssist: LANDING_ASSIST[rank.computer],
+
+    // Total weight.
+    mass: Math.round(mass * 10) / 10
+  };
+}
+
+// The stats shown when comparing two set-ups. "better" says which
+// direction is good: 1 = higher is better, -1 = lower is better.
+const COMPARE_ROWS = [
+  { label: 'TOP SPEED',      better: 1,  value: s => 120 * s.maxSpeedMultiplier,  text: v => String(Math.round(v)) },
+  { label: 'BOOST SPEED',    better: 1,  value: s => 180 * s.maxSpeedMultiplier,  text: v => String(Math.round(v)) },
+  { label: 'MAX ENGINE RPM', better: 1,  value: s => s.maxRpm,                    text: v => String(Math.round(v)) },
+  { label: 'ACCELERATION',   better: 1,  value: s => s.accelerationMultiplier,    text: v => `x${v.toFixed(2)}` },
+  { label: 'FUEL USE',       better: -1, value: s => s.fuelDrainMultiplier,       text: v => `x${v.toFixed(2)}` },
+  { label: 'FUEL REGEN',     better: 1,  value: s => s.passiveFuel * 60,          text: v => `+${v.toFixed(1)}/MIN` },
+  { label: 'FUEL TANK',      better: 1,  value: s => s.maxFuel,                   text: v => String(Math.round(v)) },
+  { label: 'RANGE',          better: 1,  value: s => s.maxFuel / s.fuelDrainMultiplier * s.maxSpeedMultiplier / 100, text: v => `x${v.toFixed(2)}` },
+  { label: 'HULL',           better: 1,  value: s => s.maxHull,                   text: v => String(Math.round(v)) },
+  { label: 'CARGO (MED KITS)', better: 1, value: s => s.medkitCapacity,           text: v => String(Math.round(v)) },
+  { label: 'LANDING ZONE',   better: 1,  value: s => s.landingAssist,             text: v => `x${v.toFixed(2)}` },
+  { label: 'WEIGHT',         better: -1, value: s => s.mass,                      text: v => v.toFixed(1) }
+];
+
+// Compares two sets of fitted parts, row by row.
+// change: 1 = better, -1 = worse, 0 = the same.
+export function compareShipStats(installedNow, installedNext) {
+  const now = calculateShipStats(installedNow);
+  const next = calculateShipStats(installedNext);
+
+  return COMPARE_ROWS.map(row => {
+    const before = row.value(now);
+    const after = row.value(next);
+    const difference = after - before;
+
+    return {
+      label: row.label,
+      now: row.text(before),
+      next: row.text(after),
+      change: Math.abs(difference) < 0.0005 ? 0 : Math.sign(difference) * row.better
+    };
+  });
+}
 
 function randomRange(min, max) {
   return min + Math.random() * (max - min);
@@ -188,45 +307,9 @@ export function attachPartsSystem(moonSurface) {
   const parts = normalizeState(moonSurface.parts);
   moonSurface.parts = parts;
 
+  // Current ship stats, from the parts fitted right now.
   function getStats() {
-    const installed = parts.installed;
-
-    const ranks = Object.values(installed).map(
-      rarity => RARITIES[rarity]?.rank ?? 0
-    );
-
-    // Ship rarity (and sprite) is the average of all five modules,
-    // rounded down, so every upgrade counts.
-    const shipRank = Math.floor(
-      ranks.reduce((total, rank) => total + rank, 0) / ranks.length
-    );
-
-    const engineRank = RARITIES[installed.engine]?.rank ?? 0;
-    const tankRank = RARITIES[installed.fuelTank]?.rank ?? 0;
-    const energyRank = RARITIES[installed.energyModule]?.rank ?? 0;
-    const hullRank = RARITIES[installed.hullCargo]?.rank ?? 0;
-    const computerRank = RARITIES[installed.computer]?.rank ?? 0;
-
-    return {
-      shipRank,
-      shipRarity: Object.keys(RARITIES).find(
-        key => RARITIES[key].rank === shipRank
-      ) || 'base',
-
-      accelerationMultiplier: ENGINE_SPEED[engineRank],
-      maxSpeedMultiplier: ENGINE_SPEED[engineRank],
-
-      fuelDrainMultiplier:
-        ENGINE_DRAIN[engineRank] * ENERGY_EFFICIENCY[energyRank],
-
-      passiveFuel: ENERGY_PASSIVE[energyRank],
-
-      maxFuel: FUEL_TANK[tankRank],
-      maxHull: HULL[hullRank],
-
-      // Control Center: makes the launch/landing green zone wider.
-      landingAssist: LANDING_ASSIST[computerRank]
-    };
+    return calculateShipStats(parts.installed);
   }
 
   // Find the closest uncollected ship module.
@@ -464,11 +547,11 @@ export function attachPartsSystem(moonSurface) {
     if (type === 'engine') {
       return `SPD x${ENGINE_SPEED[rank].toFixed(2)} FUEL x${ENGINE_DRAIN[rank].toFixed(2)}`;
     }
-    if (type === 'fuelTank') return `MAX FUEL ${FUEL_TANK[rank]}`;
+    if (type === 'fuelTank') return `MAX FUEL ${FUEL_TANK[rank]} · ${PART_MASS.fuelTank[rank].toFixed(0)} KG`;
     if (type === 'energyModule') {
       return `USE x${ENERGY_EFFICIENCY[rank].toFixed(2)} +${(ENERGY_PASSIVE[rank] * 60).toFixed(1)}/MIN`;
     }
-    if (type === 'hullCargo') return `MAX HULL ${HULL[rank]}`;
+    if (type === 'hullCargo') return `HULL ${HULL[rank]} · KITS ${CARGO_MEDKITS[rank]} · ${PART_MASS.hullCargo[rank].toFixed(0)} KG`;
     return `LANDING ZONE x${LANDING_ASSIST[rank].toFixed(2)}`;
   }
 
@@ -536,6 +619,13 @@ export function attachPartsSystem(moonSurface) {
 
   return {
     getStats,
+
+    // What would change if this part were fitted (for the shipyard).
+    previewFit(type, rarity) {
+      if (!TYPES.includes(type) || !RARITIES[rarity]) return [];
+      return compareShipStats(parts.installed, { ...parts.installed, [type]: rarity });
+    },
+
     getParts: () => parts,
     getInstalled: () => parts.installed,
     getNearestUncollected,

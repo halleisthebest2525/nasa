@@ -15,7 +15,7 @@ const SHIP_SAFE_RADIUS = 300;     // nobody chases you next to the ship
 
 // ---------- DUST STALKER ----------
 const STALKER = {
-  count: 8,
+  count: 10,
   scale: 0.72,           // 111x70 frame -> ~80 px wide
   hp: 6,                 // tougher than the Moon crawler (3)
   walkSpeed: 110,
@@ -24,7 +24,7 @@ const STALKER = {
   acceleration: 4,
   sightRange: 520,
   sightHalfAngle: Math.PI / 3,
-  noticeRange: 240,
+  noticeRange: 280,
   giveUpRange: 850,
   attackRange: 56,
   hitRange: 74,

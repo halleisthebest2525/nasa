@@ -26,6 +26,8 @@ import { createMusic } from './music.js';
 import { createMartialArts } from './martialArts.js';
 import { createSkillMenu } from './skillMenu.js';
 import { sfx } from './sfx.js';
+import { createWarpMenu } from './warp.js';
+import { createHowToPlay } from './howToPlay.js';
 import { BELT } from './world.js';
 
 const canvas = document.querySelector('#space');
@@ -90,7 +92,13 @@ const earthBase = createEarthBase({
   },
   getShipSprite: () => shipSprite,
   getShipRarity: () => partsSystem.getStats().shipRarity,
-  onLaunch: () => startEarthLaunch()
+  onLaunch: () => startEarthLaunch(),
+  // Completed worlds can be warped to straight from the shipyard.
+  getWarpTargets: () => completedWorlds().map(id => ({ id, name: PLANETS[id].name })),
+  onWarp(id) {
+    warpMenu.flash();
+    warpTo(id);
+  }
 });
 
 // PLANET LOG (P): beaten planets + module odds per planet.
@@ -235,6 +243,8 @@ function canUseMoonCombat(event) {
     !earthBase.isOpen() &&
     !planetLog.isOpen() &&
     !skillMenu.isOpen() &&
+    !warpMenu.isOpen() &&
+    !howToPlay.isOpen() &&
     !isTypingTarget(event)
   );
 }
@@ -367,7 +377,8 @@ const FLASHLIGHT_MAX_LEVEL = FLASHLIGHT_PRICES.length;
 // MED KIT: heals 40 health. Carry up to 5. Use with H.
 const MEDKIT_PRICE = 45;
 const MEDKIT_HEAL = 40;
-const MEDKIT_MAX = 5;
+// How many med kits fit in the hold: set by the HULL & CARGO module.
+const medkitMax = () => moduleStats.medkitCapacity || 5;
 
 function useMedkit() {
   if (survival.medkits <= 0 || survival.health >= 100) return false;
@@ -679,7 +690,7 @@ function openComputer() {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() ||
     moonSurface.scraps.inventoryOpen
   ) return;
 
@@ -923,14 +934,14 @@ function renderComputer() {
 
         <div class="computer-item">
           <span style="color:#c66c60">MED KIT</span>
-          <strong>${survival.medkits} / ${MEDKIT_MAX}</strong>
+          <strong>${survival.medkits} / ${medkitMax()}</strong>
           <small>+${MEDKIT_HEAL} HEALTH · PRESS H TO USE · ${MEDKIT_PRICE} SCRAPS</small>
           <button
             id="buy-medkit"
             class="computer-button"
-            ${survival.medkits >= MEDKIT_MAX || credits < MEDKIT_PRICE ? 'disabled' : ''}
+            ${survival.medkits >= medkitMax() || credits < MEDKIT_PRICE ? 'disabled' : ''}
           >
-            ${survival.medkits >= MEDKIT_MAX ? 'CARRYING MAXIMUM' : 'BUY MED KIT'}
+            ${survival.medkits >= medkitMax() ? 'CARRYING MAXIMUM' : 'BUY MED KIT'}
           </button>
         </div>
 
@@ -1098,7 +1109,7 @@ function renderComputer() {
 
   if (buyMedkitButton) {
     buyMedkitButton.addEventListener('click', () => {
-      if (survival.medkits >= MEDKIT_MAX || scraps.credits < MEDKIT_PRICE) return;
+      if (survival.medkits >= medkitMax() || scraps.credits < MEDKIT_PRICE) return;
 
       scraps.credits -= MEDKIT_PRICE;
       survival.medkits += 1;
@@ -1189,7 +1200,11 @@ function updateModuleEffects(adjustHull = true) {
 
   hull = Math.min(hull, hullMax);
 
-  const rarity = partsSystem.getStats().shipRarity;
+  // A smaller tank / hold cannot keep more than it holds.
+  survival.fuel = Math.min(survival.fuel, survival.maxFuel);
+  survival.medkits = Math.min(survival.medkits || 0, moduleStats.medkitCapacity);
+
+  const rarity = moduleStats.shipRarity;
 
   shipSprite =
     assets[`ship_space_${rarity}`] ||
@@ -1444,7 +1459,7 @@ function updateLaunchButtons() {
 }
 
 function openLaunchConfirmation() {
-  if (launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || gameOver || sleeping) return;
+  if (launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() || gameOver || sleeping) return;
 
   launchConfirmationOpen = true;
   launchSelection = 0;
@@ -1525,7 +1540,7 @@ window.addEventListener('keydown', (event) => {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() ||
     computerOpen
   ) return;
 
@@ -1563,7 +1578,7 @@ window.addEventListener('keydown', (event) => {
     sleeping ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1584,7 +1599,7 @@ window.addEventListener('keydown', (event) => {
     sleeping ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1613,7 +1628,7 @@ window.addEventListener('keydown', (event) => {
     sleeping ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1650,7 +1665,7 @@ window.addEventListener('keydown', (event) => {
     computerOpen ||
     gameOver ||
     sleeping ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1795,7 +1810,7 @@ window.addEventListener('keydown', (event) => {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen
   ) return;
@@ -2352,8 +2367,11 @@ let monstersHunting = false;
 
 // The monster music only plays while a hunting monster is this close.
 // When they are farther away (or give up), it stops straight away.
-const MONSTER_MUSIC_RADIUS = 360;
-const BOSS_MUSIC_RADIUS = 620;
+// "This close" = what the player can actually SEE: the flashlight beam
+// when it is on, otherwise the small glow around them (plus a margin).
+// Out of sight -> the normal music comes back at once.
+const MONSTER_VIEW_MARGIN = 60;
+const BOSS_VIEW_MARGIN = 200;     // the boss is huge: it is seen from farther
 
 function monstersAreHunting() {
   const enemies = currentEnemies();
@@ -2361,6 +2379,9 @@ function monstersAreHunting() {
 
   const info = enemies.list();
   const group = Array.isArray(info) ? info : info.stalkers || [];
+  const view = moonSurface.flashlight ? moonSurface.flashlight.length : 170;
+  const MONSTER_MUSIC_RADIUS = view + MONSTER_VIEW_MARGIN;
+  const BOSS_MUSIC_RADIUS = view + BOSS_VIEW_MARGIN;
   const near = (monster, radius) =>
     Math.hypot(monster.x - moonSurface.x, monster.y - moonSurface.y) <= radius;
 
@@ -2407,8 +2428,11 @@ function updateMusic(dt) {
     situation = 'travel';                               // launch pad / shipyard
   } else if (computerOpen) {
     situation = 'shop';                                 // ship computer + shop
-  } else if (monsterDanger || beltDanger) {
-    situation = 'danger';                               // monsters / boss / Asteroid Belt
+  } else if (monsterDanger) {
+    situation = 'danger';                               // monsters / boss
+  } else if (beltDanger) {
+    // The belt uses its own track when music.txt has one ("belt=...").
+    situation = music.has('belt') ? 'belt' : 'danger';
   } else if (gameMode === 'moon' || landedOnMoon) {
     situation = landedPlanet;                           // on a world (or in the landed ship)
   } else {
@@ -2427,6 +2451,11 @@ function updateMusic(dt) {
   }
 
   music.update(dt, situation, paused);
+
+  // Optional footsteps loop ("walk=..." in music.txt) while walking.
+  music.setLoop('walk',
+    !paused && !gameOver && !sleeping &&
+    ((gameMode === 'moon' && moonSurface.moving) || (gameMode === 'walking' && onFoot.moving)));
 }
 
 // COLLISION DETECTION
@@ -2723,7 +2752,7 @@ window.NasarethGame = {
       computerOpen ||
       sleeping ||
       sleepConfirmationOpen ||
-      launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+      launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() ||
       moonSurface.scraps.inventoryOpen
     ) return false;
 
@@ -2800,7 +2829,7 @@ createAdminMode({
     survival.flashlightLevel = FLASHLIGHT_PRICES.length;
     survival.flashlightOn = true;
     applyFlashlight();
-    survival.medkits = MEDKIT_MAX;
+    survival.medkits = medkitMax();
   },
   unlockSkills() {
     martialArts.unlockAll();
@@ -2854,6 +2883,136 @@ createAdminMode({
 
 window.dispatchEvent(new CustomEvent('nasareth:game-ready'));
 
+// ==========================================
+// WARP DRIVE: jump to Earth or to a completed world.
+// ==========================================
+const WARP_WORLDS = ['moon', 'mars', 'europa', 'titan'];
+
+const completedWorlds = () => WARP_WORLDS.filter(id => chestQuest.isBeaten(id));
+
+// The drive works once the first world is completed.
+function warpAvailable() {
+  return (
+    launchComplete &&
+    !gameOver &&
+    !sleeping &&
+    !isGaugeChallengeActive() &&
+    completedWorlds().length > 0
+  );
+}
+
+function warpDestinations() {
+  const onSurface = gameMode === 'moon' || landedOnMoon;
+
+  return [
+    { id: 'earth', name: 'EARTH', note: 'SHIPYARD · REPAIR AND REFIT', here: false },
+    ...completedWorlds().map(id => ({
+      id,
+      name: PLANETS[id].name,
+      note: 'COMPLETED · ARRIVE IN ORBIT',
+      here: onSurface && landedPlanet === id
+    }))
+  ];
+}
+
+function warpTo(id) {
+  if (id !== 'earth' && !completedWorlds().includes(id)) return;
+
+  // Leave wherever we are (surface, ship interior or open space).
+  heldKeys.clear();
+  onFoot.clearKeys();
+  moonSurface.clearKeys();
+  moonSurface.scraps.closeInventory();
+  martialArts.reset();
+
+  if (computerOpen) closeComputer();
+  if (earthBase.isOpen()) earthBase.close();
+
+  landedOnMoon = false;
+  gameMode = 'driving';
+  minimapOpen = false;
+  launchComplete = true;
+
+  ship.vx = 0;
+  ship.vy = 0;
+  ship.boosting = false;
+  ship.angle = -Math.PI / 2;
+
+  sfx.bigWave();
+
+  if (id === 'earth') {
+    // Straight into the shipyard: no landing needed.
+    ship.x = world.earth.x;
+    ship.y = world.earth.y - world.earth.radius - 45;
+    earthBase.open();
+    return;
+  }
+
+  const body = world[id];
+
+  ship.x = body.x + body.radius + 170;
+  ship.y = body.y;
+
+  showTransmission(
+    'WARP COMPLETE\n' +
+    `IN ORBIT AROUND ${PLANETS[id].name}\n` +
+    'PRESS E TO LAND · OR FLY ON FROM HERE',
+    '#8fc3e8'
+  );
+}
+
+const warpMenu = createWarpMenu({
+  isAvailable: warpAvailable,
+  getDestinations: warpDestinations,
+  onWarp: warpTo
+});
+
+const howToPlay = createHowToPlay();
+
+// WARP (T) and HOW TO PLAY (F1). Esc closes either.
+window.addEventListener('keydown', (event) => {
+  if (isTypingTarget(event) || event.repeat) return;
+
+  if (warpMenu.isOpen() && (event.key === 'Escape' || event.code === 'KeyT')) {
+    event.preventDefault();
+    event.stopImmediatePropagation(); // don't also open the pause menu
+    warpMenu.close();
+    return;
+  }
+
+  if (howToPlay.isOpen() && (event.key === 'Escape' || event.code === 'F1')) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    howToPlay.close();
+    return;
+  }
+
+  if (event.code === 'F1') {
+    event.preventDefault();   // not the browser's own help page
+    if (!warpMenu.isOpen()) howToPlay.toggle();
+    return;
+  }
+
+  if (
+    event.code !== 'KeyT' ||
+    paused ||
+    computerOpen ||
+    howToPlay.isOpen() ||
+    moonSurface.scraps.inventoryOpen ||
+    launchConfirmationOpen || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    sleepConfirmationOpen ||
+    !warpAvailable()
+  ) return;
+
+  event.preventDefault();
+
+  heldKeys.clear();
+  onFoot.clearKeys();
+  moonSurface.clearKeys();
+
+  warpMenu.toggle();
+});
+
 // MARTIAL ARTS MENU KEY (K) - Esc also closes it.
 window.addEventListener('keydown', (event) => {
   if (isTypingTarget(event) || event.repeat) return;
@@ -2873,7 +3032,7 @@ window.addEventListener('keydown', (event) => {
     computerOpen ||
     !launchComplete ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -2906,7 +3065,7 @@ window.addEventListener('keydown', (event) => {
     computerOpen ||
     earthBase.isOpen() ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -2923,7 +3082,7 @@ window.addEventListener('keydown', (event) => {
     computerOpen ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || warpMenu.isOpen() || howToPlay.isOpen() ||
     moonSurface.scraps.inventoryOpen
   ) return;
 
@@ -3036,6 +3195,12 @@ function frame(time) {
 
   updateMusic(dt);
 
+  // The WARP button is only on screen when warping is possible.
+  warpMenu.refresh(
+    warpAvailable() && !paused && !computerOpen && !earthBase.isOpen() &&
+    !skillMenu.isOpen() && !planetLog.isOpen() && !howToPlay.isOpen() && !warpMenu.isOpen()
+  );
+
   // ADMIN MODE (temporary): god mode keeps everything full.
   if (adminFlags.god && !gameOver) {
     hull = hullMax;
@@ -3053,7 +3218,7 @@ function frame(time) {
   }
 
   // The world is frozen while the launch / landing gauge is on screen.
-  if (!gameOver && !paused && !isGaugeChallengeActive() && !earthBase.isOpen() && !planetLog.isOpen() && !skillMenu.isOpen()) {
+  if (!gameOver && !paused && !isGaugeChallengeActive() && !earthBase.isOpen() && !planetLog.isOpen() && !skillMenu.isOpen() && !warpMenu.isOpen() && !howToPlay.isOpen()) {
     if (sleeping) {
       sleepTimer -= dt;
 
@@ -3145,6 +3310,7 @@ function frame(time) {
             y: moonSurface.y,
             damage(amount, cause = 'ATTACKED BY A LUNAR CRAWLER') {
               survival.health = Math.max(0, survival.health - amount);
+              music.sting('hit');   // optional "hit=..." sound in music.txt
               playerHurtFlash = 1;
 
               if (survival.health <= 0) {
@@ -3280,7 +3446,7 @@ function frame(time) {
     canvas.height
   );
 
-  updateHud(ship, hull, survival, gameMode === 'moon' ? landedPlanet : gameMode, moonSurface.scraps.credits ?? 0);
+  updateHud(ship, hull, survival, gameMode === 'moon' ? landedPlanet : gameMode, moonSurface.scraps.credits ?? 0, moduleStats.maxRpm);
   updateEnvironmentPanel();
 
   requestAnimationFrame(frame);

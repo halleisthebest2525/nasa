@@ -10,3 +10,12 @@ uranus=./audio/Uranus.mp3
 shop=./audio/Shopping shop.mp3
 danger=./audio/Monster.mp3
 sting=./audio/monster-appears.mp3
+
+# OPTIONAL EXTRAS: add a line (without the #) when you have the file.
+# The game works without them and starts using them as soon as they exist.
+#   belt = music inside the Asteroid Belt (until then the monster track plays)
+#   hit  = short sound when a monster hits you
+#   walk = footsteps, repeats while you walk
+# belt=./audio/Belt.mp3
+# hit=./audio/Hit.mp3
+# walk=./audio/Walking.mp3

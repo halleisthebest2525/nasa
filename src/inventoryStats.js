@@ -23,12 +23,15 @@ export function createStatsSection(game) {
     return [
       ['TOP SPEED', `${Math.round(CONFIG.ship.maxSpeed * speed)}`],
       ['BOOST SPEED', `${Math.round(CONFIG.ship.boostSpeed * speed)}`],
+      ['MAX ENGINE RPM', `${stats.maxRpm || 4500}`],
       ['ACCELERATION', `x${(stats.accelerationMultiplier || 1).toFixed(2)}`],
       ['FUEL USE', `x${(stats.fuelDrainMultiplier || 1).toFixed(2)}`],
       ['ENERGY REGEN', `+${((stats.passiveFuel || 0) * 60).toFixed(1)}/MIN`],
       ['FUEL TANK', `${Math.round(game.survival.fuel)} / ${stats.maxFuel}`],
       ['HULL', `${Math.round(hull)} / ${hullMax}`],
-      ['LANDING ASSIST', `x${(stats.landingAssist || 1).toFixed(2)}`]
+      ['LANDING ASSIST', `x${(stats.landingAssist || 1).toFixed(2)}`],
+      ['CARGO (MED KITS)', `${stats.medkitCapacity || 5}`],
+      ['WEIGHT', `${(stats.mass || 110).toFixed(1)}`]
     ];
   }
 

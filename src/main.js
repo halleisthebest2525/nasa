@@ -28,7 +28,7 @@ let moduleStats = partsSystem.getStats();
 let hullMax = moduleStats.maxHull;
 
 let landedOnMoon = false;
-let shipSprite = assets.ship_space;
+let shipSprite = assets.ship_space_common;
 
 // GAME STATE
 let hull = 100;
@@ -718,18 +718,18 @@ function updateModuleEffects(adjustHull = true) {
 
   hull = Math.min(hull, hullMax);
 
-  const rarity = moduleStats.shipRarity;
+  const rarity = partsSystem.getStats().shipRarity;
 
-  const spaceSprite = assets[`ship_space_${rarity}`];
-  const moonSprite = assets[`ship_moon_${rarity}`];
+  shipSprite =
+    assets[`ship_space_${rarity}`] ||
+    assets.ship_space_common;
 
-  if (rarity === 'base') {
-    shipSprite = assets.ship_space;
-    assets.ship_moon_current = assets.ship_moon;
-  } else {
-    shipSprite = spaceSprite || assets.ship_space;
-    assets.ship_moon_current = moonSprite || assets.ship_moon;
-  }
+  moonSurface.assets.ship_moon =
+    assets[`ship_moon_${rarity}`] ||
+    assets.ship_moon_common;
+
+  
+
 
   updateHull();
 }

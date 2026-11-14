@@ -13,6 +13,7 @@ import { isTypingTarget } from './input.js';
 import { createSpaceBackground } from './spaceBackground.js';
 import { runGaugeChallenge, isGaugeChallengeActive } from './gaugeChallenge.js';
 import { createStatsSection } from './inventoryStats.js';
+import { createLunarCrawlers } from './lunarCrawler.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -28,6 +29,46 @@ const survival = new Survival();
 
 const partsSystem = attachPartsSystem(moonSurface);
 const spaceBackground = createSpaceBackground(assets);
+
+// Moon enemies (not saved: a fresh group appears on load and each new day).
+const crawlers = createLunarCrawlers(assets);
+moonSurface.enemies = crawlers;
+
+// Red screen flash when a crawler hits the player.
+let playerHurtFlash = 0;
+
+function playerMeleeAttack() {
+  crawlers.playerAttack(moonSurface.x, moonSurface.y, moonSurface.angle);
+}
+
+function canUseMoonCombat(event) {
+  return (
+    gameMode === 'moon' &&
+    !paused &&
+    !gameOver &&
+    !sleeping &&
+    !computerOpen &&
+    !moonSurface.scraps.inventoryOpen &&
+    !launchConfirmationOpen &&
+    !sleepConfirmationOpen &&
+    !isGaugeChallengeActive() &&
+    !isTypingTarget(event)
+  );
+}
+
+// ATTACK: Space or left mouse button on the Moon.
+window.addEventListener('keydown', (event) => {
+  if (event.key !== ' ' || event.repeat || !canUseMoonCombat(event)) return;
+
+  event.preventDefault();
+  playerMeleeAttack();
+});
+
+canvas.addEventListener('mousedown', (event) => {
+  if (event.button !== 0 || !canUseMoonCombat(event)) return;
+
+  playerMeleeAttack();
+});
 
 // Ship + player stats in the B inventory (below the ship modules).
 moonSurface.scraps.inventorySections.push(createStatsSection({
@@ -869,7 +910,10 @@ window.addEventListener('nasareth:modules-changed', () => {
 updateModuleEffects(false);
 
 // LIFE SUPPORT GAME OVER
-function triggerLifeSupportFailure() {
+function triggerLifeSupportFailure(
+  title = 'LIFE SUPPORT FAILED',
+  detail = 'SUIT OXYGEN: 0%'
+) {
   if (gameOver) return;
 
   gameOver = true;
@@ -880,9 +924,9 @@ function triggerLifeSupportFailure() {
 
   closeComputer();
 
-  gameOverScreen.querySelector('div').textContent = 'LIFE SUPPORT FAILED';
+  gameOverScreen.querySelector('div').textContent = title;
   gameOverScreen.querySelector('div').style.color = '#77b9d4';
-  gameOverScreen.children[1].textContent = 'SUIT OXYGEN: 0%';
+  gameOverScreen.children[1].textContent = detail;
   gameOverScreen.children[2].textContent = 'MISSION FAILED';
 
   gameOverScreen.style.display = 'flex';
@@ -975,6 +1019,7 @@ function finishSleep() {
   // A new day: fresh scrap and modules appear on the Moon.
   moonSurface.scraps.respawn();
   partsSystem.respawn();
+  crawlers.respawn(moonSurface.x, moonSurface.y);
 
   showTransmission(
     'LONG-RANGE SCAN COMPLETE\n' +
@@ -2224,6 +2269,23 @@ function frame(time) {
         } else if (gameMode === 'moon') {
           moonSurface.update(dt, survival.canRun(), survival.staminaExhausted);
 
+          // Lunar Crawlers chase and attack the player.
+          crawlers.update(dt, {
+            x: moonSurface.x,
+            y: moonSurface.y,
+            damage(amount) {
+              survival.health = Math.max(0, survival.health - amount);
+              playerHurtFlash = 1;
+
+              if (survival.health <= 0) {
+                triggerLifeSupportFailure(
+                  'KILLED IN ACTION',
+                  'ATTACKED BY A LUNAR CRAWLER'
+                );
+              }
+            }
+          });
+
           survival.updateMoon(dt, isRunning());
 
           const targets = getNearestDetectorTargets();
@@ -2293,6 +2355,13 @@ function frame(time) {
     pixelCtx.restore();
   } else if (gameMode === 'moon') {
     moonSurface.draw(pixelCtx, width, height);
+
+    // Red flash when a Lunar Crawler hits the player.
+    if (playerHurtFlash > 0) {
+      pixelCtx.fillStyle = `rgba(160, 20, 20, ${0.35 * playerHurtFlash})`;
+      pixelCtx.fillRect(0, 0, width, height);
+      playerHurtFlash = Math.max(0, playerHurtFlash - dt * 2.5);
+    }
   } else {
     onFoot.draw(pixelCtx, width, height);
   }

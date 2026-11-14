@@ -207,6 +207,12 @@ export class MoonSurface {
     this.drawGround(ctx, width, height, cameraX, cameraY);
     this.scraps.drawWorld(ctx, cameraX, cameraY, width, height);
     this.drawShip(ctx, cameraX + this.shipX, cameraY + this.shipY);
+
+    // Enemies (set by main.js). Drawn before the darkness, so they hide in it.
+    if (this.enemies) {
+      this.enemies.draw(ctx, cameraX, cameraY, width, height);
+      this.enemies.drawSwing(ctx, centerX, centerY);
+    }
     this.drawPlayer(ctx, centerX, centerY);
 
     // HARD PLAYER-CENTERED VISIBILITY
@@ -880,6 +886,7 @@ export class MoonSurface {
     const lines = [
       'WASD / ARROWS  MOVE',
       'SHIFT  RUN',
+      'SPACE / CLICK  ATTACK',
       'E  ENTER SHIP',
       'B  INVENTORY',
       'F  FLASHLIGHT',
@@ -888,7 +895,7 @@ export class MoonSurface {
     ];
 
     lines.forEach((line, index) => {
-      ctx.fillText(line, width - 22, height - 160 + index * 18);
+      ctx.fillText(line, width - 22, height - 180 + index * 18);
     });
 
     ctx.restore();

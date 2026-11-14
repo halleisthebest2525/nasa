@@ -383,7 +383,8 @@ export function createLunarCrawlers(assets) {
   }
 
   // Player melee attack. Returns true if the attack was used.
-  function playerAttack(playerX, playerY, playerAngle) {
+  // damage = player's weapon damage (1 = starting weapon).
+  function playerAttack(playerX, playerY, playerAngle, damage = 1) {
     if (playerCooldown > 0) return false;
 
     playerCooldown = PLAYER_ATTACK_COOLDOWN;
@@ -405,7 +406,7 @@ export function createLunarCrawlers(assets) {
       // Very close crawlers are always hit, even slightly behind.
       if (Math.abs(difference) > PLAYER_ATTACK_ARC && distance > 30) continue;
 
-      crawler.hp -= 1;
+      crawler.hp -= damage;
       crawler.alerted = true; // getting hit always makes it chase you
 
       // Knockback away from the player.

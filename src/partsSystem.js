@@ -35,10 +35,47 @@ const IMAGE_NAMES = {
   computer: 'control_center'
 };
 
-const ENGINE_SPEED = [1, 1.05, 1.09, 1.13, 1.17, 1.22];
-const ENGINE_DRAIN = [1, 1.06, 1.12, 1.18, 1.24, 1.30];
-const ENERGY_EFFICIENCY = [1, 0.95, 0.90, 0.85, 0.80, 0.75];
-const ENERGY_PASSIVE = [0, 0.008, 0.012, 0.018, 0.025, 0.035];
+// ==========================================
+// MODULE STATS (balance chart) - EXPONENTIAL UPGRADES
+// Rank: 0 base · 1 common · 2 rare · 3 epic · 4 mythic · 5 legendary
+// Every tier multiplies the previous one by the same GROWTH factor, so
+// early (Moon) tiers are small steps and late tiers are big jumps.
+//
+//                      base  common  rare  epic  mythic  legendary
+// Engine speed  x1.08  1.00  1.08    1.17  1.26  1.36    1.47
+// Engine burn   x1.04  1.00  1.04    1.08  1.12  1.17    1.22  (cost)
+// Fuel tank     x1.25  100   125     156   195   244     305
+// Energy use    x0.92  1.00  0.92    0.85  0.78  0.72    0.66
+// Energy regen  x1.6   0     0.5     0.8   1.3   2.0     3.3   (fuel/min)
+// Hull & cargo  x1.25  100   125     156   195   244     305
+// Landing assist x1.10 1.00  1.10    1.21  1.33  1.46    1.61  (Control Center)
+//
+// Full legendary ship: ~5.5x the travel range of a base ship, matching
+// destinations that get farther away (Moon 14k, Mars 24k, later more).
+// ==========================================
+const GROWTH = {
+  engineSpeed: 1.08,
+  engineBurn: 1.04,
+  fuelTank: 1.25,
+  energyUse: 0.92,
+  energyRegen: 1.6,
+  hull: 1.25,
+  landingAssist: 1.10
+};
+
+const RANKS = [0, 1, 2, 3, 4, 5];
+const curve = (base, growth) => RANKS.map(rank => base * growth ** rank);
+
+const ENGINE_SPEED = curve(1, GROWTH.engineSpeed);
+const ENGINE_DRAIN = curve(1, GROWTH.engineBurn);
+const ENERGY_EFFICIENCY = curve(1, GROWTH.energyUse);
+// Fuel regenerated per SECOND (0.5 per minute at common, x1.6 per tier).
+const ENERGY_PASSIVE = RANKS.map(rank =>
+  rank === 0 ? 0 : 0.5 * GROWTH.energyRegen ** (rank - 1) / 60
+);
+const FUEL_TANK = RANKS.map(rank => Math.round(100 * GROWTH.fuelTank ** rank));
+const HULL = RANKS.map(rank => Math.round(100 * GROWTH.hull ** rank));
+const LANDING_ASSIST = curve(1, GROWTH.landingAssist);
 
 function randomRange(min, max) {
   return min + Math.random() * (max - min);
@@ -56,16 +93,30 @@ const PLANET_RARITY_ODDS = {
   umbriel: { common: 2,  rare: 8,  epic: 25, mythic: 45, legendary: 20 }
 };
 
+// Rarities that cannot drop on a planet yet, e.g. { mars: ['mythic'] }
+// until the Mars boss is defeated. A locked roll becomes the next lower
+// rarity, so the odds of everything else stay as in the sheet.
+const lockedRarities = {};
+
+const RARITY_ORDER = ['common', 'rare', 'epic', 'mythic', 'legendary'];
+
 function rollRarity(planet = 'moon') {
   const odds = PLANET_RARITY_ODDS[planet] || PLANET_RARITY_ODDS.moon;
   let roll = Math.random() * 100;
+  let result = 'common';
 
   for (const [rarity, chance] of Object.entries(odds)) {
-    if (roll < chance) return rarity;
+    if (roll < chance) { result = rarity; break; }
     roll -= chance;
   }
 
-  return 'common';
+  const locked = lockedRarities[planet] || [];
+
+  while (locked.includes(result) && result !== 'common') {
+    result = RARITY_ORDER[RARITY_ORDER.indexOf(result) - 1];
+  }
+
+  return result;
 }
 
 // Number of modules lying on the Moon at a time (balance setting).
@@ -148,6 +199,7 @@ export function attachPartsSystem(moonSurface) {
     const tankRank = RARITIES[installed.fuelTank]?.rank ?? 0;
     const energyRank = RARITIES[installed.energyModule]?.rank ?? 0;
     const hullRank = RARITIES[installed.hullCargo]?.rank ?? 0;
+    const computerRank = RARITIES[installed.computer]?.rank ?? 0;
 
     return {
       shipRank,
@@ -163,8 +215,11 @@ export function attachPartsSystem(moonSurface) {
 
       passiveFuel: ENERGY_PASSIVE[energyRank],
 
-      maxFuel: 100 + tankRank * 20,
-      maxHull: 100 + hullRank * 20
+      maxFuel: FUEL_TANK[tankRank],
+      maxHull: HULL[hullRank],
+
+      // Control Center: makes the launch/landing green zone wider.
+      landingAssist: LANDING_ASSIST[computerRank]
     };
   }
 
@@ -257,7 +312,9 @@ export function attachPartsSystem(moonSurface) {
   // Installed modules and the module inventory are kept.
   // planet = 'moon' or 'mars' (uses that planet's rarity odds).
   function respawn(planet = 'moon') {
-    parts.items = createParts(planet);
+    // Keep boss rewards that have not been picked up yet.
+    const rewards = parts.items.filter(part => part.reward && !part.collected);
+    parts.items = [...rewards, ...createParts(planet)];
   }
 
   // Older saves could have too many modules on the Moon, or mythic /
@@ -269,8 +326,8 @@ export function attachPartsSystem(moonSurface) {
 
     const invalid =
       !Array.isArray(parts.items) ||
-      parts.items.length > PARTS_PER_MOON ||
-      parts.items.some(part => !MOON_RARITIES.includes(part.rarity));
+      parts.items.filter(part => !part.reward).length > PARTS_PER_MOON ||
+      parts.items.some(part => !part.reward && !MOON_RARITIES.includes(part.rarity));
 
     if (invalid) {
       parts.items = createParts(planet);
@@ -411,13 +468,13 @@ export function attachPartsSystem(moonSurface) {
       if (type === 'engine') {
         stat = `SPD x${ENGINE_SPEED[rank].toFixed(2)} FUEL x${ENGINE_DRAIN[rank].toFixed(2)}`;
       } else if (type === 'fuelTank') {
-        stat = `MAX FUEL ${100 + rank * 20}`;
+        stat = `MAX FUEL ${FUEL_TANK[rank]}`;
       } else if (type === 'energyModule') {
         stat = `USE x${ENERGY_EFFICIENCY[rank].toFixed(2)} +${(ENERGY_PASSIVE[rank] * 60).toFixed(1)}/MIN`;
       } else if (type === 'hullCargo') {
-        stat = `MAX HULL ${100 + rank * 20}`;
+        stat = `MAX HULL ${HULL[rank]}`;
       } else {
-        stat = `SHIP RANK +${rank}`;
+        stat = `LANDING ZONE x${LANDING_ASSIST[rank].toFixed(2)}`;
       }
 
       return {
@@ -440,6 +497,26 @@ export function attachPartsSystem(moonSurface) {
     getNearestUncollected,
     getSlotInfo,
     respawn,
-    fixMoonItems
+    fixMoonItems,
+
+    // Lock / unlock rarities on a planet (e.g. Mars mythic until the boss dies).
+    setLockedRarities(planet, rarities) {
+      lockedRarities[planet] = [...rarities];
+    },
+
+    // Boss reward: a guaranteed part placed in the world (picked up like any part).
+    addRewardPart(x, y, rarity) {
+      const types = ['engine', 'fuelTank', 'energyModule', 'hullCargo', 'computer'];
+
+      parts.items.push({
+        id: `boss-reward-${Date.now().toString(36)}`,
+        type: types[Math.floor(Math.random() * types.length)],
+        rarity,
+        x: Math.round(x),
+        y: Math.round(y),
+        collected: false,
+        reward: true
+      });
+    }
   };
 }

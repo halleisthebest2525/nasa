@@ -17,6 +17,7 @@ import { createShipConfigSection } from './shipConfigView.js';
 import { createLunarCrawlers } from './lunarCrawler.js';
 import { createChestQuest } from './chestQuest.js';
 import { PLANETS } from './planets.js';
+import { createMarsMonsters } from './marsMonsters.js';
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -45,11 +46,43 @@ moonSurface.chestQuest = chestQuest;
 const crawlers = createLunarCrawlers(assets);
 moonSurface.enemies = crawlers;
 
+// Mars enemies: Dust Stalkers + the Ares Colossus boss (not saved, except
+// whether the boss has been defeated).
+const marsMonsters = createMarsMonsters(assets, {
+  onBossDefeated(x, y) {
+    // The strongest Mars item: a guaranteed MYTHIC module where it fell.
+    partsSystem.addRewardPart(x, y, 'mythic');
+    // From now on mythic modules can also drop normally on Mars.
+    partsSystem.setLockedRarities('mars', []);
+
+    showTransmission(
+      'ARES COLOSSUS DEFEATED\n' +
+      'A MYTHIC MODULE LIES WHERE IT FELL\n' +
+      'MYTHIC SALVAGE NOW APPEARS ON MARS',
+      '#ff7b5c'
+    );
+  },
+  onBossEnraged() {
+    showMoonMessage('ARES COLOSSUS IS ENRAGED · WATCH FOR CRYSTAL ERUPTIONS');
+  }
+});
+
+// Mythic modules only drop on Mars after the boss is defeated.
+partsSystem.setLockedRarities('mars', ['mythic']);
+
+// Which enemy group lives on each planet (see planets.js "enemies").
+const ENEMY_GROUPS = { moon: crawlers, mars: marsMonsters };
+
+function currentEnemies() {
+  return ENEMY_GROUPS[PLANETS[landedPlanet].enemies] || null;
+}
+
 // Red screen flash when a crawler hits the player.
 let playerHurtFlash = 0;
 
 function playerMeleeAttack() {
-  crawlers.playerAttack(moonSurface.x, moonSurface.y, moonSurface.angle);
+  const enemies = currentEnemies();
+  if (enemies) enemies.playerAttack(moonSurface.x, moonSurface.y, moonSurface.angle, getWeaponDamage());
 }
 
 function canUseMoonCombat(event) {
@@ -95,7 +128,8 @@ moonSurface.scraps.inventorySections.push(createStatsSection({
   survival,
   getModuleStats: () => partsSystem.getStats(),
   getHull: () => ({ hull, hullMax }),
-  getProgress: () => chestQuest.getState()
+  getProgress: () => chestQuest.getState(),
+  getWeaponDamage: () => getWeaponDamage()
 }));
 let moduleStats = partsSystem.getStats();
 
@@ -118,7 +152,7 @@ let planetStates = {};
 function applyPlanetFeatures() {
   const planet = PLANETS[landedPlanet];
 
-  moonSurface.enemies = planet.enemies ? crawlers : null;
+  moonSurface.enemies = currentEnemies();
   moonSurface.chestQuest = planet.chestQuest ? chestQuest : null;
 }
 
@@ -182,6 +216,29 @@ const HULL_REPAIR_AMOUNT = 20;
 // FLASHLIGHT: price of each level (index 0 = buying level 1).
 const FLASHLIGHT_PRICES = [60, 120, 200, 320];
 const FLASHLIGHT_MAX_LEVEL = FLASHLIGHT_PRICES.length;
+
+// MED KIT: heals 40 health. Carry up to 5. Use with H.
+const MEDKIT_PRICE = 45;
+const MEDKIT_HEAL = 40;
+const MEDKIT_MAX = 5;
+
+// WEAPON UPGRADE: damage grows exponentially (x1.5 per level).
+// Crawlers have 3 HP: LV0 3 hits, LV1-2 2 hits, LV3-4 1 hit.
+const WEAPON_PRICES = [80, 180, 400, 900];
+const WEAPON_MAX_LEVEL = WEAPON_PRICES.length;
+const WEAPON_GROWTH = 1.5;
+
+function getWeaponDamage() {
+  return WEAPON_GROWTH ** (survival.weaponLevel || 0);
+}
+
+function useMedkit() {
+  if (survival.medkits <= 0 || survival.health >= 100) return false;
+
+  survival.medkits -= 1;
+  survival.health = Math.min(100, survival.health + MEDKIT_HEAL);
+  return true;
+}
 
 // Flashlight beam on the Moon. Each level makes it longer and wider.
 // Level 1: 290 long · Level 4: 470 long.
@@ -723,6 +780,36 @@ function renderComputer() {
               : flashlightLevel === 0 ? 'BUY FLASHLIGHT' : 'UPGRADE FLASHLIGHT'}
           </button>
         </div>
+
+        <div class="computer-item">
+          <span style="color:#c66c60">MED KIT</span>
+          <strong>${survival.medkits} / ${MEDKIT_MAX}</strong>
+          <small>+${MEDKIT_HEAL} HEALTH · PRESS H TO USE · ${MEDKIT_PRICE} CREDITS</small>
+          <button
+            id="buy-medkit"
+            class="computer-button"
+            ${survival.medkits >= MEDKIT_MAX || credits < MEDKIT_PRICE ? 'disabled' : ''}
+          >
+            ${survival.medkits >= MEDKIT_MAX ? 'CARRYING MAXIMUM' : 'BUY MED KIT'}
+          </button>
+        </div>
+
+        <div class="computer-item">
+          <span style="color:#e0c78e">WEAPON UPGRADE</span>
+          <strong>LEVEL ${survival.weaponLevel} / ${WEAPON_MAX_LEVEL}</strong>
+          <small>
+            ${survival.weaponLevel >= WEAPON_MAX_LEVEL
+              ? `MAXIMUM LEVEL · DAMAGE x${getWeaponDamage().toFixed(1)}`
+              : `DAMAGE x${getWeaponDamage().toFixed(1)} TO x${(getWeaponDamage() * WEAPON_GROWTH).toFixed(1)} · ${WEAPON_PRICES[survival.weaponLevel]} CREDITS`}
+          </small>
+          <button
+            id="buy-weapon"
+            class="computer-button"
+            ${survival.weaponLevel >= WEAPON_MAX_LEVEL || credits < (WEAPON_PRICES[survival.weaponLevel] ?? Infinity) ? 'disabled' : ''}
+          >
+            ${survival.weaponLevel >= WEAPON_MAX_LEVEL ? 'FULLY UPGRADED' : 'UPGRADE WEAPON'}
+          </button>
+        </div>
       </div>
 
       <div style="
@@ -878,6 +965,31 @@ function renderComputer() {
       if (survival.buyOxygen(scraps)) {
         renderComputer();
       }
+    });
+  }
+
+  const buyMedkitButton = computerScreen.querySelector('#buy-medkit');
+  const buyWeaponButton = computerScreen.querySelector('#buy-weapon');
+
+  if (buyMedkitButton) {
+    buyMedkitButton.addEventListener('click', () => {
+      if (survival.medkits >= MEDKIT_MAX || scraps.credits < MEDKIT_PRICE) return;
+
+      scraps.credits -= MEDKIT_PRICE;
+      survival.medkits += 1;
+      renderComputer();
+    });
+  }
+
+  if (buyWeaponButton) {
+    buyWeaponButton.addEventListener('click', () => {
+      const price = WEAPON_PRICES[survival.weaponLevel];
+
+      if (price === undefined || scraps.credits < price) return;
+
+      scraps.credits -= price;
+      survival.weaponLevel += 1;
+      renderComputer();
     });
   }
 
@@ -1106,6 +1218,7 @@ function finishSleep() {
   partsSystem.respawn(landedPlanet);
   planetStates = {};
   crawlers.respawn(moonSurface.x, moonSurface.y);
+  marsMonsters.respawn(moonSurface.x, moonSurface.y);
 
   showTransmission(
     'LONG-RANGE SCAN COMPLETE\n' +
@@ -1340,6 +1453,35 @@ window.addEventListener('keydown', (event) => {
   survival.detectorLit = false;
 });
 
+// MED KIT KEY (H): on a planet or inside the ship.
+window.addEventListener('keydown', (event) => {
+  if (
+    event.code !== 'KeyH' ||
+    event.repeat ||
+    paused ||
+    isTypingTarget(event) ||
+    (gameMode !== 'moon' && gameMode !== 'walking') ||
+    gameOver ||
+    sleeping ||
+    computerOpen ||
+    moonSurface.scraps.inventoryOpen ||
+    launchConfirmationOpen || isGaugeChallengeActive() ||
+    sleepConfirmationOpen
+  ) return;
+
+  let text;
+
+  if (survival.medkits <= 0) text = 'NO MED KITS · BUY THEM AT THE SHIP COMPUTER';
+  else if (survival.health >= 100) text = 'HEALTH ALREADY FULL';
+  else {
+    useMedkit();
+    text = `MED KIT USED · HEALTH ${Math.round(survival.health)}% · ${survival.medkits} LEFT`;
+  }
+
+  if (gameMode === 'moon') showMoonMessage(text);
+  else showTransmission(text, '#c66c60');
+});
+
 // FLASHLIGHT KEY (Moon only)
 window.addEventListener('keydown', (event) => {
   if (
@@ -1443,7 +1585,7 @@ function startEarthLaunch() {
     required: 1,
     maxAttempts: Infinity,
     fillSeconds: 1.5,
-    zoneSize: 16,
+    zoneSize: Math.min(28, 16 * (moduleStats.landingAssist || 1)),
     onAttempt(success) {
       if (!success) damageHullFromChallenge(LAUNCH_FAIL_DAMAGE);
       return !gameOver;
@@ -1485,7 +1627,7 @@ function startMoonLanding(planetId = 'moon') {
     required: LANDING_REQUIRED,
     maxAttempts: LANDING_MAX_ATTEMPTS,
     fillSeconds: 1.25,
-    zoneSize: 13,
+    zoneSize: Math.min(24, 13 * (moduleStats.landingAssist || 1)),
     onAttempt(success) {
       if (!success) damageHullFromChallenge(LANDING_FAIL_DAMAGE);
       return !gameOver;
@@ -2160,7 +2302,9 @@ function createSnapshot() {
       detectorFlash: survival.detectorFlash,
       detectorLit: survival.detectorLit,
       flashlightLevel: survival.flashlightLevel,
-      flashlightOn: survival.flashlightOn
+      flashlightOn: survival.flashlightOn,
+      medkits: survival.medkits,
+      weaponLevel: survival.weaponLevel
     },
     moon: {
       x: moonSurface.x,
@@ -2179,7 +2323,10 @@ function createSnapshot() {
       parts: structuredClone(partsSystem.getParts()),
 
       // Chest detector / chest position / Mars map.
-      progress: chestQuest.save()
+      progress: chestQuest.save(),
+
+      // Mars boss: defeated or not.
+      marsBoss: marsMonsters.save()
     },
 
     onFoot: saveOnFoot,
@@ -2236,6 +2383,10 @@ function loadPendingSave() {
 
     // Chest quest progress (older saves have none).
     chestQuest.load(save.moon?.progress);
+
+    // Mars boss state; mythic stays locked on Mars until it is defeated.
+    marsMonsters.load(save.moon?.marsBoss);
+    partsSystem.setLockedRarities('mars', marsMonsters.isBossDefeated() ? [] : ['mythic']);
 
     if (save.moon && PLANETS[landedPlanet].chestQuest) {
       chestQuest.checkModules();
@@ -2319,6 +2470,11 @@ window.NasarethGame = {
   },
 
   // Read-only debug info about the Moon's crawlers (for testers).
+  // Read-only debug info about the Mars monsters (for testers).
+  debugMars() {
+    return marsMonsters.list();
+  },
+
   debugCrawlers() {
     return {
       alive: crawlers.list(),
@@ -2374,11 +2530,13 @@ function frame(time) {
     } else {
       // Killed crawlers come back 30 s later, out of the player's view.
       // The view is the flashlight beam if on, else the small glow (~170).
-      crawlers.tickRespawns(dt, {
+      const respawnView = {
         x: moonSurface.x,
         y: moonSurface.y,
         viewDistance: moonSurface.flashlight ? moonSurface.flashlight.length : 170
-      });
+      };
+      crawlers.tickRespawns(dt, respawnView);
+      marsMonsters.tickRespawns(dt, respawnView);
 
       clockAccumulator += dt * 2;
 
@@ -2440,20 +2598,24 @@ function frame(time) {
         } else if (gameMode === 'moon') {
           moonSurface.update(dt, survival.canRun(), survival.staminaExhausted);
 
-          // Lunar Crawlers chase and attack the player.
-          if (PLANETS[landedPlanet].enemies) crawlers.update(dt, {
+          // This planet's monsters chase and attack the player.
+          const enemies = currentEnemies();
+
+          if (enemies) enemies.update(dt, {
             x: moonSurface.x,
             y: moonSurface.y,
-            damage(amount) {
+            damage(amount, cause = 'ATTACKED BY A LUNAR CRAWLER') {
               survival.health = Math.max(0, survival.health - amount);
               playerHurtFlash = 1;
 
               if (survival.health <= 0) {
-                triggerLifeSupportFailure(
-                  'KILLED IN ACTION',
-                  'ATTACKED BY A LUNAR CRAWLER'
-                );
+                triggerLifeSupportFailure('KILLED IN ACTION', cause);
               }
+            },
+            // Solid monsters (the boss) push the player out of their body.
+            push(dx, dy) {
+              moonSurface.x += dx;
+              moonSurface.y += dy;
             }
           });
 
@@ -2518,6 +2680,9 @@ function frame(time) {
       );
     }
 
+    // Mars appears on the space map only after the Mars star map is found.
+    world.marsDiscovered = chestQuest.getState().marsMap;
+
     drawWorld(
       pixelCtx,
       world,
@@ -2533,6 +2698,11 @@ function frame(time) {
     pixelCtx.restore();
   } else if (gameMode === 'moon') {
     moonSurface.draw(pixelCtx, width, height);
+
+    // Boss health bar on Mars.
+    if (landedPlanet === 'mars') {
+      marsMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
+    }
 
     // Red flash when a Lunar Crawler hits the player.
     if (playerHurtFlash > 0) {

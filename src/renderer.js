@@ -90,7 +90,9 @@ export function drawWorld(
   }
 
   if (minimapOpen) {
-    drawMinimap(ctx, ship, world.moon, width, height, world.earth, world.mars);
+    // Mars is only marked once the Mars star map has been found.
+    drawMinimap(ctx, ship, world.moon, width, height, world.earth,
+      world.marsDiscovered ? world.mars : null);
   }
 }
 

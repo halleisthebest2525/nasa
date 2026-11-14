@@ -7,7 +7,7 @@
 import { CONFIG } from './config.js';
 
 const ROW_HEIGHT = 16;
-const ROWS = 9;
+const ROWS = 11;
 
 // game = {
 //   survival,              the Survival object
@@ -27,7 +27,8 @@ export function createStatsSection(game) {
       ['FUEL USE', `x${(stats.fuelDrainMultiplier || 1).toFixed(2)}`],
       ['ENERGY REGEN', `+${((stats.passiveFuel || 0) * 60).toFixed(1)}/MIN`],
       ['FUEL TANK', `${Math.round(game.survival.fuel)} / ${stats.maxFuel}`],
-      ['HULL', `${Math.round(hull)} / ${hullMax}`]
+      ['HULL', `${Math.round(hull)} / ${hullMax}`],
+      ['LANDING ASSIST', `x${(stats.landingAssist || 1).toFixed(2)}`]
     ];
   }
 
@@ -49,7 +50,9 @@ export function createStatsSection(game) {
       ],
       ['DETECTOR', s.detectorOn ? 'ON' : 'OFF'],
       ['CHEST DETECTOR', progress.chestDetector ? 'YES' : 'NO'],
-      ['MARS MAP', progress.marsMap ? 'ACQUIRED' : 'NONE']
+      ['MARS MAP', progress.marsMap ? 'ACQUIRED' : 'NONE'],
+      ['MED KITS', `${s.medkits || 0} (H TO USE)`],
+      ['WEAPON', `LV ${s.weaponLevel || 0} · DMG x${(game.getWeaponDamage ? game.getWeaponDamage() : 1).toFixed(1)}`]
     ];
   }
 

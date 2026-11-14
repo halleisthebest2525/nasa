@@ -900,6 +900,7 @@ export class MoonSurface {
       'E  ENTER SHIP',
       'B  INVENTORY',
       'F  FLASHLIGHT',
+      'H  MED KIT',
       'Q  METAL DETECTOR',
       'M  MAP'
     ];

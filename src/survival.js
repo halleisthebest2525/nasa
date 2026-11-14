@@ -18,6 +18,10 @@ export class Survival {
     // 0 = no flashlight. Bought and upgraded at the ship computer.
     this.flashlightLevel = 0;
     this.flashlightOn = false;
+
+    // Shop items.
+    this.medkits = 0;       // carried med kits (press H to use)
+    this.weaponLevel = 0;   // 0 = starting weapon
   }
 
   updateFuel(dt, moving, boosting, modules = {}) {

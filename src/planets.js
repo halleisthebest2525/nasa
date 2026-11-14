@@ -14,7 +14,7 @@ export const PLANETS = {
     rocks: 1400,
     ridges: 65,
     seed: 0,           // terrain seed offset (same seed = same terrain)
-    enemies: true,     // Lunar Crawlers live here
+    enemies: 'moon',   // Lunar Crawlers live here
     chestQuest: true,  // the Mars-map chest is on the Moon
     palette: {
       space: '#111211',
@@ -42,7 +42,7 @@ export const PLANETS = {
     rocks: 1700,
     ridges: 80,
     seed: 50000,
-    enemies: false,
+    enemies: 'mars',   // Dust Stalkers + Ares Colossus (boss)
     chestQuest: false,
     palette: {
       space: '#140d0b',

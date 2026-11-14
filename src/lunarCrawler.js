@@ -428,6 +428,52 @@ export function createLunarCrawlers(assets) {
     return true;
   }
 
+  // Generic hit used by the martial-arts system (martialArts.js).
+  // arc = half-angle of the attack cone (Math.PI = all around).
+  // hitSet (optional): monsters already hit by this attack are skipped.
+  // Returns one entry per monster hit: { x, y, killed, boss }.
+  function strike({ x, y, angle = 0, range, arc = Math.PI, damage = 1, knockback = 190, hitSet = null }) {
+    const results = [];
+
+    for (const crawler of crawlers) {
+      if (crawler.state === 'death') continue;
+      if (hitSet && hitSet.has(crawler)) continue;
+
+      const dx = crawler.x - x;
+      const dy = crawler.y - y;
+      const distance = Math.hypot(dx, dy);
+
+      if (distance > range + 12) continue;
+
+      if (arc < Math.PI && distance > 30) {
+        let difference = Math.atan2(dy, dx) - angle;
+        difference = Math.atan2(Math.sin(difference), Math.cos(difference));
+        if (Math.abs(difference) > arc) continue;
+      }
+
+      if (hitSet) hitSet.add(crawler);
+
+      crawler.hp -= damage;
+      crawler.alerted = true;
+
+      const length = distance || 1;
+      crawler.vx = dx / length * knockback;
+      crawler.vy = dy / length * knockback;
+
+      if (crawler.hp <= 0) {
+        setState(crawler, 'death');
+        respawnTimers.push(RESPAWN_DELAY);
+      } else {
+        crawler.state = 'idle';
+        setState(crawler, 'hit');
+      }
+
+      results.push({ x: crawler.x, y: crawler.y, killed: crawler.hp <= 0, boss: false });
+    }
+
+    return results;
+  }
+
   function drawCrawler(ctx, crawler, x, y) {
     const image = frames[crawler.state][crawler.frame];
 
@@ -498,6 +544,7 @@ export function createLunarCrawlers(assets) {
     draw,
     drawSwing,
     playerAttack,
+    strike,
     respawn: spawnAll,
     tickRespawns,
     count: () => crawlers.length,

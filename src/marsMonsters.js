@@ -542,6 +542,79 @@ export function createMarsMonsters(assets, callbacks = {}) {
     return true;
   }
 
+  // Generic hit used by the martial-arts system (martialArts.js).
+  // arc = half-angle of the attack cone (Math.PI = all around).
+  // energy = an energy technique (the boss resists those: 60% damage).
+  // hitSet (optional): monsters already hit by this attack are skipped.
+  // Returns one entry per monster hit: { x, y, killed, boss }.
+  const BOSS_REACH = 45;          // the boss is big: it can be hit from farther away
+  const BOSS_ENERGY_RESIST = 0.6;
+
+  function strike({ x, y, angle = 0, range, arc = Math.PI, damage = 1, knockback = 190, energy = false, hitSet = null }) {
+    const results = [];
+    const inArc = (dx, dy, distance) =>
+      arc >= Math.PI || distance <= 30 || Math.abs(angleDifference(Math.atan2(dy, dx), angle)) <= arc;
+
+    for (const s of stalkers) {
+      if (s.state === 'die') continue;
+      if (hitSet && hitSet.has(s)) continue;
+
+      const dx = s.x - x;
+      const dy = s.y - y;
+      const distance = Math.hypot(dx, dy);
+
+      if (distance > range + STALKER.bodyRadius * 0.5 || !inArc(dx, dy, distance)) continue;
+
+      if (hitSet) hitSet.add(s);
+
+      s.hp -= damage;
+      s.alerted = true;
+      s.vx = dx / (distance || 1) * knockback;
+      s.vy = dy / (distance || 1) * knockback;
+
+      if (s.hp <= 0) {
+        setState(s, 'die');
+        respawnTimers.push(STALKER.respawnDelay);
+      } else {
+        s.state = 'idle';
+        setState(s, 'hurt');
+      }
+
+      results.push({ x: s.x, y: s.y, killed: s.hp <= 0, boss: false });
+    }
+
+    if (boss && boss.state !== 'die' && !(hitSet && hitSet.has(boss))) {
+      const dx = boss.x - x;
+      const dy = boss.y - y;
+      const distance = Math.hypot(dx, dy);
+
+      if (distance <= range + BOSS_REACH && inArc(dx, dy, Math.max(0, distance - BOSS_REACH))) {
+        if (hitSet) hitSet.add(boss);
+
+        let dealt = damage * (energy ? BOSS_ENERGY_RESIST : 1);
+
+        boss.hp -= dealt;
+        boss.alerted = true;
+
+        if (!boss.enraged && boss.hp <= BOSS.hp * BOSS.phase2At) {
+          boss.enraged = true;
+          if (callbacks.onBossEnraged) callbacks.onBossEnraged();
+        }
+
+        if (boss.hp <= 0) {
+          setState(boss, 'die');
+        } else if (boss.state === 'idle' || boss.state === 'move') {
+          boss.state = 'idle';
+          setState(boss, 'hurt');
+        }
+
+        results.push({ x: boss.x, y: boss.y, killed: boss.hp <= 0, boss: true });
+      }
+    }
+
+    return results;
+  }
+
   // ---------- drawing ----------
   function drawFrame(ctx, image, x, y, scale, facing, alpha = 1) {
     if (!image || !image.complete || image.naturalWidth === 0) return;
@@ -701,6 +774,7 @@ export function createMarsMonsters(assets, callbacks = {}) {
     drawSwing,
     drawBossBar,
     playerAttack,
+    strike,
     tickRespawns,
     respawn: spawnAll,
     isBossDefeated: () => bossDefeated,

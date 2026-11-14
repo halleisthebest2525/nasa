@@ -4,8 +4,8 @@
 // 'travel', 'moon', 'shop', 'danger') and the matching track fades in while
 // the old one fades out. Track files are listed in music.txt.
 //
-//   earth   Earth.mp3           launch pad, Earth orbit, the shipyard
-//   travel  Going to Moon.mp3   flying through open space
+//   travel  Going to Moon.mp3   flying through open space, and everything
+//                               at Earth (launch pad, orbit, shipyard)
 //   moon / mars / europa / titan / uranus   on (or close to) that world
 //   shop    Shopping shop.mp3   the ship computer / shop
 //   danger  Monster.mp3         monsters chasing you, the boss, the Asteroid Belt
@@ -14,6 +14,7 @@
 
 const VOLUME = 0.35;        // same loudness as the menu music
 const FADE_SECONDS = 1.6;   // crossfade time between two tracks
+const QUICK_STOP = { danger: 0.3 };   // these tracks stop almost at once
 const STING_VOLUME = 0.5;
 
 export function createMusic() {
@@ -66,9 +67,10 @@ export function createMusic() {
 
       for (const [name, audio] of Object.entries(players)) {
         const target = name === current ? VOLUME * duck : 0;
+        const stopStep = QUICK_STOP[name] ? VOLUME * dt / QUICK_STOP[name] : step;
         const volume = audio.volume < target
           ? Math.min(target, audio.volume + step)
-          : Math.max(target, audio.volume - step);
+          : Math.max(target, audio.volume - stopStep);
 
         audio.volume = Math.max(0, Math.min(1, volume));
 

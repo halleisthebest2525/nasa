@@ -1,7 +1,6 @@
 mainmenu=./audio/main-menu.mp3
 
 # In-game soundtrack (src/music.js picks the track for each situation).
-earth=./audio/Earth.mp3
 travel=./audio/Going to Moon.mp3
 moon=./audio/Moon.mp3
 mars=./audio/Mars.mp3

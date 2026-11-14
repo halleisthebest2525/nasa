@@ -41,6 +41,7 @@ export function drawWorld(
   objectCtx.imageSmoothingEnabled = false;
 
   drawJupiterBackdrop(ctx, world, ship, width, height);
+  drawSaturnBackdrop(ctx, world, ship, width, height);
 
   drawWorldObjects(objectCtx, world, ship, width, height, texturedBackground);
 
@@ -368,6 +369,33 @@ function drawJupiterBackdrop(ctx, world, ship, width, height) {
   ctx.imageSmoothingEnabled = false;
   ctx.globalAlpha = alpha * 0.8;
   ctx.drawImage(image, Math.floor(x - size / 2), Math.floor(y - size / 2), size, size);
+  ctx.restore();
+}
+
+// SATURN BACKDROP: the same idea behind Titan (the picture is wider than
+// it is tall because of the rings, so its own shape is kept).
+function drawSaturnBackdrop(ctx, world, ship, width, height) {
+  const image = world.sprites?.saturn;
+  const saturn = world.saturn;
+
+  if (!image || !saturn || !world.titan || !image.naturalWidth) return;
+
+  const distance = Math.hypot(world.titan.x - ship.x, world.titan.y - ship.y);
+  const alpha = Math.max(0, Math.min(1, (6500 - distance) / 2500));
+
+  if (alpha <= 0) return;
+
+  const x = width / 2 + (saturn.x - ship.x) * JUPITER_PARALLAX;
+  const y = height / 2 + (saturn.y - ship.y) * JUPITER_PARALLAX;
+  const drawWidth = saturn.width;
+  const drawHeight = drawWidth * image.naturalHeight / image.naturalWidth;
+
+  if (x < -drawWidth || y < -drawHeight || x > width + drawWidth || y > height + drawHeight) return;
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.globalAlpha = alpha * 0.8;
+  ctx.drawImage(image, Math.floor(x - drawWidth / 2), Math.floor(y - drawHeight / 2), drawWidth, drawHeight);
   ctx.restore();
 }
 

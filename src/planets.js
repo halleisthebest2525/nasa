@@ -17,7 +17,9 @@ export const PLANETS = {
     enemies: 'moon',   // Lunar Crawlers live here
     modules: 8,        // modules lying on the surface
     // Scrap per day: count range and rarity mix (percent).
-    scrap: { min: 20, max: 30, common: 68, rare: 25, epic: 7 },
+    // Scrap keeps spawning: "start" lie around on arrival, then a new one
+    // every "interval" seconds until "maxActive" exist. Later planets pay more.
+    scrap: { start: 18, maxActive: 30, interval: [5, 11], minPlayerDistance: 320, valueMultiplier: 1, common: 68, rare: 25, epic: 7 },
     landing: { fillSeconds: 1.25, zoneSize: 13 },
     chestQuest: true,  // the Mars-map chest is on the Moon
     palette: {
@@ -49,7 +51,7 @@ export const PLANETS = {
     enemies: 'mars',   // Dust Stalkers + Ares Colossus (boss)
     // A little more (and better) salvage than the Moon.
     modules: 10,
-    scrap: { min: 25, max: 35, common: 55, rare: 33, epic: 12 },
+    scrap: { start: 20, maxActive: 34, interval: [5, 10], minPlayerDistance: 320, valueMultiplier: 1.3, common: 55, rare: 33, epic: 12 },
     // Harder landing: faster gauge, tighter green zone.
     landing: { fillSeconds: 1.05, zoneSize: 9 },
     chestQuest: true,  // the Europa-map chest is on Mars
@@ -81,7 +83,7 @@ export const PLANETS = {
     seed: 100000,
     enemies: 'europa', // Frost Skitters + Cryolith Leviathan (boss)
     modules: 12,
-    scrap: { min: 28, max: 38, common: 45, rare: 38, epic: 17 },
+    scrap: { start: 22, maxActive: 36, interval: [4, 9], minPlayerDistance: 320, valueMultiplier: 1.7, common: 45, rare: 38, epic: 17 },
     landing: { fillSeconds: 0.95, zoneSize: 8 },
     chestQuest: true,  // the Titan-map chest is on Europa
     palette: {
@@ -110,7 +112,7 @@ export const PLANETS = {
     ridges: 120,
     seed: 150000,
     modules: 14,
-    scrap: { min: 30, max: 42, common: 38, rare: 40, epic: 22 },
+    scrap: { start: 24, maxActive: 40, interval: [4, 8], minPlayerDistance: 320, valueMultiplier: 2.2, common: 38, rare: 40, epic: 22 },
     landing: { fillSeconds: 0.88, zoneSize: 7 },
     chestQuest: true,  // the Uranus-map chest is on Titan
     palette: {

@@ -23,6 +23,9 @@ import { createEarthBase } from './earthBase.js';
 import { createPlanetLog } from './planetLog.js';
 import { adminFlags, createAdminMode } from './adminMode.js'; // TEMPORARY
 import { createMusic } from './music.js';
+import { createMartialArts } from './martialArts.js';
+import { createSkillMenu } from './skillMenu.js';
+import { sfx } from './sfx.js';
 import { BELT } from './world.js';
 
 const canvas = document.querySelector('#space');
@@ -37,7 +40,8 @@ const onFoot = new OnFoot(assets);
 // Sprites the space renderer needs (Asteroid Belt rocks, Jupiter backdrop).
 world.sprites = {
   asteroids: Array.from({ length: 16 }, (_, i) => assets[`asteroid_${String(i + 1).padStart(2, '0')}`]),
-  jupiter: assets.jupiter_backdrop
+  jupiter: assets.jupiter_backdrop,
+  saturn: assets.saturn_backdrop
 };
 
 const moonSurface = new MoonSurface(assets);
@@ -167,10 +171,55 @@ function currentEnemies() {
 // Red screen flash when a crawler hits the player.
 let playerHurtFlash = 0;
 
-function playerMeleeAttack() {
-  const enemies = currentEnemies();
-  if (enemies) enemies.playerAttack(moonSurface.x, moonSurface.y, moonSurface.angle, getWeaponDamage());
-}
+// MARTIAL ARTS: the player's only way to fight (no weapons).
+// Skills are learned with scraps in the Martial Arts menu (K).
+const martialArts = createMartialArts({
+  getPlayer: () => ({ x: moonSurface.x, y: moonSurface.y, angle: moonSurface.angle }),
+  movePlayer(dx, dy) {
+    moonSurface.x += dx;
+    moonSurface.y += dy;
+
+    // Stay on the planet (the flying kick cannot leave the surface).
+    const distance = Math.hypot(moonSurface.x, moonSurface.y);
+    const limit = moonSurface.planet.radius - 40;
+
+    if (distance > limit) {
+      moonSurface.x = moonSurface.x / distance * limit;
+      moonSurface.y = moonSurface.y / distance * limit;
+    }
+  },
+  getEnemies: () => currentEnemies(),
+  getScraps: () => moonSurface.scraps.credits ?? 0,
+  spendScraps(amount) {
+    moonSurface.scraps.credits -= amount;
+  },
+  // What the player has achieved so far (decides which skills can be learned).
+  getProgress: () => ({
+    reachedMars: Boolean(chestQuest.getState().maps.mars),
+    marsBoss: marsMonsters.isBossDefeated(),
+    europaBoss: europaMonsters.isBossDefeated(),
+    titanBeaten: chestQuest.isBeaten('titan'),
+    neptuneBoss: false   // Neptune is not in the game yet
+  }),
+  // Defeated monsters drop scrap: one piece each, a pile from a boss.
+  onKill(result) {
+    if (result.boss) moonSurface.scraps.dropAt(result.x, result.y, 'epic', 6);
+    else moonSurface.scraps.dropAt(result.x, result.y, null, 1);
+  },
+  message: text => showMoonMessage(text),
+  sfx
+});
+
+const skillMenu = createSkillMenu({
+  arts: martialArts,
+  getScraps: () => moonSurface.scraps.credits ?? 0
+});
+
+// The surface draws the attack effects and the skill bar.
+moonSurface.combat = martialArts;
+
+// Scrap picked up: play the collection sound.
+moonSurface.scraps.onCollect = item => sfx.pickup(item.rarity);
 
 function canUseMoonCombat(event) {
   return (
@@ -185,22 +234,28 @@ function canUseMoonCombat(event) {
     !isGaugeChallengeActive() &&
     !earthBase.isOpen() &&
     !planetLog.isOpen() &&
+    !skillMenu.isOpen() &&
     !isTypingTarget(event)
   );
 }
 
-// ATTACK: Space or left mouse button on the Moon.
+// ATTACK: Space or left mouse button = PUNCH. Number keys 1-6 = skills.
 window.addEventListener('keydown', (event) => {
-  if (event.key !== ' ' || event.repeat || !canUseMoonCombat(event)) return;
+  if (event.repeat || !canUseMoonCombat(event)) return;
 
-  event.preventDefault();
-  playerMeleeAttack();
+  if (event.key === ' ') {
+    event.preventDefault();
+    martialArts.use('punch');
+  } else if (/^Digit[1-6]$/.test(event.code)) {
+    event.preventDefault();
+    martialArts.useByKey(event.code.slice(5));
+  }
 });
 
 canvas.addEventListener('mousedown', (event) => {
   if (event.button !== 0 || !canUseMoonCombat(event)) return;
 
-  playerMeleeAttack();
+  martialArts.use('punch');
 });
 
 // Ship Configuration in the B inventory: a live view of the real ship.
@@ -218,7 +273,7 @@ moonSurface.scraps.inventorySections.push(createStatsSection({
   getModuleStats: () => partsSystem.getStats(),
   getHull: () => ({ hull, hullMax }),
   getProgress: () => chestQuest.getState(),
-  getWeaponDamage: () => getWeaponDamage()
+  getSkillCount: () => martialArts.unlockedCount()
 }));
 let moduleStats = partsSystem.getStats();
 
@@ -313,16 +368,6 @@ const FLASHLIGHT_MAX_LEVEL = FLASHLIGHT_PRICES.length;
 const MEDKIT_PRICE = 45;
 const MEDKIT_HEAL = 40;
 const MEDKIT_MAX = 5;
-
-// WEAPON UPGRADE: damage grows exponentially (x1.5 per level).
-// Crawlers have 3 HP: LV0 3 hits, LV1-2 2 hits, LV3-4 1 hit.
-const WEAPON_PRICES = [80, 180, 400, 900];
-const WEAPON_MAX_LEVEL = WEAPON_PRICES.length;
-const WEAPON_GROWTH = 1.5;
-
-function getWeaponDamage() {
-  return WEAPON_GROWTH ** (survival.weaponLevel || 0);
-}
 
 function useMedkit() {
   if (survival.medkits <= 0 || survival.health >= 100) return false;
@@ -634,7 +679,7 @@ function openComputer() {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
     moonSurface.scraps.inventoryOpen
   ) return;
 
@@ -690,7 +735,7 @@ function renderComputer() {
       ">MARKETPLACE</h1>
 
       <p style="color:#899382;font-size:12px;margin-bottom:30px">
-        TRADE RESOURCES AND MANAGE YOUR CREDITS
+        SPEND THE SCRAPS YOU COLLECT
       </p>
 
       <div style="
@@ -700,11 +745,11 @@ function renderComputer() {
         margin-bottom:24px;
         color:#c7d5ae;
         font-size:14px;
-      ">AVAILABLE CREDITS: ${credits}</div>
+      ">YOUR SCRAPS: ${credits}</div>
 
       <div style="display:flex;flex-direction:column;gap:12px">
         <button id="computer-sell" class="computer-button">
-          SELL SCRAPS
+          MARTIAL ARTS SKILLS
         </button>
 
         <button id="computer-buy" class="computer-button">
@@ -816,7 +861,7 @@ function renderComputer() {
         <div class="computer-item">
           <span style="color:#d5b66b">SHIP FUEL</span>
           <strong>${Math.round(survival.fuel / survival.maxFuel * 100)}%</strong>
-          <small>+20 FUEL · 30 CREDITS</small>
+          <small>+20 FUEL · 30 SCRAPS</small>
           <button
             id="buy-fuel"
             class="computer-button"
@@ -829,7 +874,7 @@ function renderComputer() {
         <div class="computer-item">
           <span style="color:#77b9d4">SHIP OXYGEN</span>
           <strong>${Math.round(survival.shipOxygen)}%</strong>
-          <small>+20% OXYGEN · 30 CREDITS</small>
+          <small>+20% OXYGEN · 30 SCRAPS</small>
           <button
             id="buy-oxygen"
             class="computer-button"
@@ -842,7 +887,7 @@ function renderComputer() {
         <div class="computer-item">
           <span style="color:#c66c60">HULL REPAIR</span>
           <strong>${Math.round(hull)} / ${hullMax}</strong>
-          <small>+${HULL_REPAIR_AMOUNT} HULL · ${HULL_REPAIR_PRICE} CREDITS</small>
+          <small>+${HULL_REPAIR_AMOUNT} HULL · ${HULL_REPAIR_PRICE} SCRAPS</small>
           <button
             id="buy-repair"
             class="computer-button"
@@ -860,7 +905,7 @@ function renderComputer() {
           <small>
             ${flashlightMaxed
               ? `MAXIMUM LEVEL · BEAM ${BEAM_BASE_LENGTH + flashlightLevel * BEAM_LENGTH_PER_LEVEL}`
-              : `LEVEL ${flashlightLevel + 1}: BEAM ${flashlightLevel === 0 ? 0 : BEAM_BASE_LENGTH + flashlightLevel * BEAM_LENGTH_PER_LEVEL} → ${BEAM_BASE_LENGTH + (flashlightLevel + 1) * BEAM_LENGTH_PER_LEVEL} · F TO TOGGLE · ${flashlightPrice} CREDITS`}
+              : `LEVEL ${flashlightLevel + 1}: BEAM ${flashlightLevel === 0 ? 0 : BEAM_BASE_LENGTH + flashlightLevel * BEAM_LENGTH_PER_LEVEL} → ${BEAM_BASE_LENGTH + (flashlightLevel + 1) * BEAM_LENGTH_PER_LEVEL} · F TO TOGGLE · ${flashlightPrice} SCRAPS`}
           </small>
           <small style="color:#6f786c">
             LV1 ${BEAM_BASE_LENGTH + BEAM_LENGTH_PER_LEVEL} · LV2 ${BEAM_BASE_LENGTH + 2 * BEAM_LENGTH_PER_LEVEL} · LV3 ${BEAM_BASE_LENGTH + 3 * BEAM_LENGTH_PER_LEVEL} · LV4 ${BEAM_BASE_LENGTH + 4 * BEAM_LENGTH_PER_LEVEL}
@@ -879,7 +924,7 @@ function renderComputer() {
         <div class="computer-item">
           <span style="color:#c66c60">MED KIT</span>
           <strong>${survival.medkits} / ${MEDKIT_MAX}</strong>
-          <small>+${MEDKIT_HEAL} HEALTH · PRESS H TO USE · ${MEDKIT_PRICE} CREDITS</small>
+          <small>+${MEDKIT_HEAL} HEALTH · PRESS H TO USE · ${MEDKIT_PRICE} SCRAPS</small>
           <button
             id="buy-medkit"
             class="computer-button"
@@ -889,22 +934,6 @@ function renderComputer() {
           </button>
         </div>
 
-        <div class="computer-item">
-          <span style="color:#e0c78e">WEAPON UPGRADE</span>
-          <strong>LEVEL ${survival.weaponLevel} / ${WEAPON_MAX_LEVEL}</strong>
-          <small>
-            ${survival.weaponLevel >= WEAPON_MAX_LEVEL
-              ? `MAXIMUM LEVEL · DAMAGE x${getWeaponDamage().toFixed(1)}`
-              : `DAMAGE x${getWeaponDamage().toFixed(1)} TO x${(getWeaponDamage() * WEAPON_GROWTH).toFixed(1)} · ${WEAPON_PRICES[survival.weaponLevel]} CREDITS`}
-          </small>
-          <button
-            id="buy-weapon"
-            class="computer-button"
-            ${survival.weaponLevel >= WEAPON_MAX_LEVEL || credits < (WEAPON_PRICES[survival.weaponLevel] ?? Infinity) ? 'disabled' : ''}
-          >
-            ${survival.weaponLevel >= WEAPON_MAX_LEVEL ? 'FULLY UPGRADED' : 'UPGRADE WEAPON'}
-          </button>
-        </div>
       </div>
 
       <div style="
@@ -912,7 +941,7 @@ function renderComputer() {
         font-size:13px;
         margin-bottom:18px;
       ">
-        AVAILABLE CREDITS: ${credits}
+        YOUR SCRAPS: ${credits}
       </div>
 
       <button id="computer-back" class="computer-button secondary">
@@ -1013,9 +1042,10 @@ function renderComputer() {
   const buyFlashlightButton = computerScreen.querySelector('#buy-flashlight');
 
   if (sellButton) {
+    // Scrap no longer needs selling: this button opens the skills menu.
     sellButton.addEventListener('click', () => {
-      computerPage = 'sell';
-      renderComputer();
+      closeComputer();
+      skillMenu.toggle();
     });
   }
 
@@ -1076,17 +1106,6 @@ function renderComputer() {
     });
   }
 
-  if (buyWeaponButton) {
-    buyWeaponButton.addEventListener('click', () => {
-      const price = WEAPON_PRICES[survival.weaponLevel];
-
-      if (price === undefined || scraps.credits < price) return;
-
-      scraps.credits -= price;
-      survival.weaponLevel += 1;
-      renderComputer();
-    });
-  }
 
   if (buyRepairButton) {
     buyRepairButton.addEventListener('click', () => {
@@ -1425,7 +1444,7 @@ function updateLaunchButtons() {
 }
 
 function openLaunchConfirmation() {
-  if (launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || gameOver || sleeping) return;
+  if (launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() || gameOver || sleeping) return;
 
   launchConfirmationOpen = true;
   launchSelection = 0;
@@ -1506,7 +1525,7 @@ window.addEventListener('keydown', (event) => {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
     computerOpen
   ) return;
 
@@ -1544,7 +1563,7 @@ window.addEventListener('keydown', (event) => {
     sleeping ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1565,7 +1584,7 @@ window.addEventListener('keydown', (event) => {
     sleeping ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1594,7 +1613,7 @@ window.addEventListener('keydown', (event) => {
     sleeping ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1631,7 +1650,7 @@ window.addEventListener('keydown', (event) => {
     computerOpen ||
     gameOver ||
     sleeping ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -1776,7 +1795,7 @@ window.addEventListener('keydown', (event) => {
     gameOver ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
     computerOpen ||
     moonSurface.scraps.inventoryOpen
   ) return;
@@ -2326,10 +2345,15 @@ function checkBeltCollisions() {
 
 // SOUNDTRACK: which track fits what the player is doing right now.
 const music = createMusic();
-let dangerHold = 0;        // keeps the danger track on a few seconds after the threat ends
+let beltHold = 0;          // keeps the danger track on briefly after leaving the belt
 let dangerCheckTimer = 0;
 let stingCooldown = 0;
 let monstersHunting = false;
+
+// The monster music only plays while a hunting monster is this close.
+// When they are farther away (or give up), it stops straight away.
+const MONSTER_MUSIC_RADIUS = 360;
+const BOSS_MUSIC_RADIUS = 620;
 
 function monstersAreHunting() {
   const enemies = currentEnemies();
@@ -2337,22 +2361,26 @@ function monstersAreHunting() {
 
   const info = enemies.list();
   const group = Array.isArray(info) ? info : info.stalkers || [];
+  const near = (monster, radius) =>
+    Math.hypot(monster.x - moonSurface.x, monster.y - moonSurface.y) <= radius;
 
-  if (group.some(monster => monster.alerted && monster.state !== 'die')) return true;
+  if (group.some(monster =>
+    monster.alerted && monster.state !== 'die' && monster.state !== 'death' && near(monster, MONSTER_MUSIC_RADIUS)
+  )) return true;
 
   const boss = Array.isArray(info) ? null : info.boss;
-  if (!boss || info.bossDefeated || boss.state === 'die') return false;
+  if (!boss || info.bossDefeated || boss.state === 'die' || !near(boss, BOSS_MUSIC_RADIUS)) return false;
   return boss.alerted !== undefined ? boss.alerted : boss.state !== 'idle';
 }
 
 function updateMusic(dt) {
   dangerCheckTimer -= dt;
   stingCooldown = Math.max(0, stingCooldown - dt);
-  dangerHold = Math.max(0, dangerHold - dt);
+  beltHold = Math.max(0, beltHold - dt);
 
-  // Checking the monsters twice a second is plenty.
+  // Checking the monsters five times a second is plenty.
   if (dangerCheckTimer <= 0) {
-    dangerCheckTimer = 0.5;
+    dangerCheckTimer = 0.2;
 
     const hunting = gameMode === 'moon' && !sleeping && monstersAreHunting();
 
@@ -2366,17 +2394,20 @@ function updateMusic(dt) {
 
   const inBelt = gameMode === 'driving' && launchComplete && shipInBelt(150);
 
-  if (monstersHunting || inBelt) dangerHold = 4;
+  if (inBelt) beltHold = 1.5;
+
+  const monsterDanger = monstersHunting && gameMode === 'moon';
+  const beltDanger = beltHold > 0 && gameMode === 'driving';
 
   let situation;
 
   if (gameOver) {
     situation = null;                                   // silence
   } else if (earthBase.isOpen() || !launchComplete) {
-    situation = 'earth';                                // launch pad / shipyard
+    situation = 'travel';                               // launch pad / shipyard
   } else if (computerOpen) {
     situation = 'shop';                                 // ship computer + shop
-  } else if (dangerHold > 0 && (gameMode === 'moon' || gameMode === 'driving')) {
+  } else if (monsterDanger || beltDanger) {
     situation = 'danger';                               // monsters / boss / Asteroid Belt
   } else if (gameMode === 'moon' || landedOnMoon) {
     situation = landedPlanet;                           // on a world (or in the landed ship)
@@ -2384,7 +2415,8 @@ function updateMusic(dt) {
     // In space: the theme of a nearby world, otherwise the travel theme.
     situation = 'travel';
 
-    for (const id of ['earth', 'moon', 'mars', 'europa', 'titan']) {
+    // (Earth has no track of its own: the travel theme plays there.)
+    for (const id of ['moon', 'mars', 'europa', 'titan']) {
       const body = world[id];
 
       if (body && Math.hypot(body.x - ship.x, body.y - ship.y) < body.radius + 1800) {
@@ -2541,7 +2573,8 @@ function createSnapshot() {
       scraps: {
         items: structuredClone(moonSurface.scraps.items),
         inventory: structuredClone(moonSurface.scraps.inventory),
-        credits: moonSurface.scraps.credits
+        credits: moonSurface.scraps.credits,
+        found: structuredClone(moonSurface.scraps.found)
       },
 
       parts: structuredClone(partsSystem.getParts()),
@@ -2551,7 +2584,10 @@ function createSnapshot() {
 
       // Mars boss: defeated or not.
       marsBoss: marsMonsters.save(),
-      europaBoss: europaMonsters.save()
+      europaBoss: europaMonsters.save(),
+
+      // Learned martial arts.
+      skills: martialArts.save()
     },
 
     onFoot: saveOnFoot,
@@ -2613,6 +2649,10 @@ function loadPendingSave() {
     marsMonsters.load(save.moon?.marsBoss);
     partsSystem.setLockedRarities('mars', marsMonsters.isBossDefeated() ? [] : ['mythic']);
     europaMonsters.load(save.moon?.europaBoss);
+    martialArts.load(save.moon?.skills);
+
+    // Older saves: scrap waiting to be sold becomes balance.
+    moonSurface.scraps.cashInInventory();
     partsSystem.setLockedRarities('europa', europaMonsters.isBossDefeated() ? [] : ['legendary']);
 
     if (save.moon && PLANETS[landedPlanet].chestQuest) {
@@ -2683,7 +2723,7 @@ window.NasarethGame = {
       computerOpen ||
       sleeping ||
       sleepConfirmationOpen ||
-      launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
+      launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
       moonSurface.scraps.inventoryOpen
     ) return false;
 
@@ -2706,6 +2746,25 @@ window.NasarethGame = {
     return europaMonsters.list();
   },
 
+  // Martial arts + scrap info (for testers).
+  debugSkills() {
+    return {
+      scraps: moonSurface.scraps.credits,
+      scrapsOnPlanet: moonSurface.scraps.items.length,
+      skills: Object.fromEntries(
+        ['punch', 'kick', 'flyingKick', 'energyWave', 'advancedWave', 'finisher']
+          .map(id => [id, `${martialArts.status(id)} cd ${martialArts.cooldownOf(id).toFixed(1)}`])
+      ),
+      player: { x: Math.round(moonSurface.x), y: Math.round(moonSurface.y) }
+    };
+  },
+
+  // Move the player on the surface (for testers).
+  debugGoto(x, y) {
+    moonSurface.x = x;
+    moonSurface.y = y;
+  },
+
   debugCrawlers() {
     return {
       alive: crawlers.list(),
@@ -2723,7 +2782,7 @@ window.NasarethGame = {
 createAdminMode({
   addCredits(amount) {
     moonSurface.scraps.credits = (moonSurface.scraps.credits ?? 0) + amount;
-    return `CREDITS: ${moonSurface.scraps.credits}`;
+    return `SCRAPS: ${moonSurface.scraps.credits}`;
   },
   restoreAll() {
     hull = hullMax;
@@ -2741,8 +2800,11 @@ createAdminMode({
     survival.flashlightLevel = FLASHLIGHT_PRICES.length;
     survival.flashlightOn = true;
     applyFlashlight();
-    survival.weaponLevel = WEAPON_MAX_LEVEL;
     survival.medkits = MEDKIT_MAX;
+  },
+  unlockSkills() {
+    martialArts.unlockAll();
+    return 'ALL 6 MARTIAL ARTS UNLOCKED (KEYS 1-6)';
   },
   gotoNextModule() {
     if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
@@ -2792,6 +2854,39 @@ createAdminMode({
 
 window.dispatchEvent(new CustomEvent('nasareth:game-ready'));
 
+// MARTIAL ARTS MENU KEY (K) - Esc also closes it.
+window.addEventListener('keydown', (event) => {
+  if (isTypingTarget(event) || event.repeat) return;
+
+  if ((event.key === 'Escape' || event.code === 'KeyK') && skillMenu.isOpen()) {
+    event.preventDefault();
+    event.stopImmediatePropagation(); // don't also open the pause menu
+    skillMenu.close();
+    return;
+  }
+
+  if (
+    event.code !== 'KeyK' ||
+    paused ||
+    gameOver ||
+    sleeping ||
+    computerOpen ||
+    !launchComplete ||
+    moonSurface.scraps.inventoryOpen ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
+    sleepConfirmationOpen
+  ) return;
+
+  event.preventDefault();
+
+  // No keys stay "held" while the menu is open.
+  heldKeys.clear();
+  onFoot.clearKeys();
+  moonSurface.clearKeys();
+
+  skillMenu.toggle();
+});
+
 // PLANET LOG KEY (P) - Esc also closes it.
 window.addEventListener('keydown', (event) => {
   if (isTypingTarget(event) || event.repeat) return;
@@ -2811,7 +2906,7 @@ window.addEventListener('keydown', (event) => {
     computerOpen ||
     earthBase.isOpen() ||
     moonSurface.scraps.inventoryOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
     sleepConfirmationOpen
   ) return;
 
@@ -2828,7 +2923,7 @@ window.addEventListener('keydown', (event) => {
     computerOpen ||
     sleeping ||
     sleepConfirmationOpen ||
-    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() ||
+    launchConfirmationOpen || isGaugeChallengeActive() || earthBase.isOpen() || planetLog.isOpen() || skillMenu.isOpen() ||
     moonSurface.scraps.inventoryOpen
   ) return;
 
@@ -2893,6 +2988,8 @@ function resetSurfaceUi() {
   survival.detectorFlash = 0;
   minimapOpen = false;
   if (planetLog.isOpen()) planetLog.close();
+  if (skillMenu.isOpen()) skillMenu.close();
+  martialArts.reset();
 }
 
 // The ENVIRONMENT panel (top right) shows where the player is.
@@ -2956,7 +3053,7 @@ function frame(time) {
   }
 
   // The world is frozen while the launch / landing gauge is on screen.
-  if (!gameOver && !paused && !isGaugeChallengeActive() && !earthBase.isOpen() && !planetLog.isOpen()) {
+  if (!gameOver && !paused && !isGaugeChallengeActive() && !earthBase.isOpen() && !planetLog.isOpen() && !skillMenu.isOpen()) {
     if (sleeping) {
       sleepTimer -= dt;
 
@@ -3036,6 +3133,9 @@ function frame(time) {
           survival.updateStamina(dt, isRunning());
         } else if (gameMode === 'moon') {
           moonSurface.update(dt, survival.canRun(), survival.staminaExhausted);
+
+          // Attacks in progress: flying kick, energy waves, cooldowns.
+          martialArts.update(dt);
 
           // This planet's monsters chase and attack the player.
           const enemies = currentEnemies();
@@ -3180,7 +3280,7 @@ function frame(time) {
     canvas.height
   );
 
-  updateHud(ship, hull, survival, gameMode === 'moon' ? landedPlanet : gameMode);
+  updateHud(ship, hull, survival, gameMode === 'moon' ? landedPlanet : gameMode, moonSurface.scraps.credits ?? 0);
   updateEnvironmentPanel();
 
   requestAnimationFrame(frame);

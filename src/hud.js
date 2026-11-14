@@ -42,7 +42,7 @@ function resourceRow(label, value, color) {
   `;
 }
 
-export function updateHud(ship, hull = 100, survival = null, mode = 'driving') {
+export function updateHud(ship, hull = 100, survival = null, mode = 'driving', scraps = 0) {
   const rpm = Math.min(Math.round(ship.speed * 25), 4500);
 
   if (speed) speed.textContent = String(rpm);
@@ -69,7 +69,11 @@ export function updateHud(ship, hull = 100, survival = null, mode = 'driving') {
     ${resourceRow('SUIT O₂', survival.oxygen, '#77b9d4')}
     ${resourceRow('HEALTH', survival.health, '#c66c60')}
     ${resourceRow('STAMINA', survival.stamina, '#9bbd78')}
-    <div style="margin-top:8px;color:#788274">
+    <div style="margin-top:8px;display:flex;justify-content:space-between;color:#e0c78e">
+      <span>SCRAPS</span>
+      <span>${scraps}</span>
+    </div>
+    <div style="margin-top:6px;color:#788274">
       MODE · ${mode.toUpperCase()}
     </div>
   `;

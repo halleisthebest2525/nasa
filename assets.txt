@@ -178,3 +178,4 @@ europa_skitter_walk_1=img/enemies/europa/skitter_walk_1.png
 europa_skitter_walk_2=img/enemies/europa/skitter_walk_2.png
 europa_skitter_walk_3=img/enemies/europa/skitter_walk_3.png
 europa_skitter_walk_4=img/enemies/europa/skitter_walk_4.png
+saturn_backdrop=img/saturn_backdrop.png

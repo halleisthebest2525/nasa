@@ -1,5 +1,27 @@
+// ==========================================
+// SCRAPS
+// Scraps are the game's money. Walking over a scrap collects it and adds
+// its value to the balance straight away (this.credits).
+//
+// Scraps keep appearing: every few seconds a new one spawns somewhere on
+// the planet (never next to the player or the ship), up to a maximum.
+// Each planet has its own settings in planets.js ("scrap").
+// ==========================================
 
 const SURFACE_RADIUS = 4800;
+const SHIP_CLEAR_RADIUS = 160;   // no scrap right on top of the landed ship
+const SPAWN_ANIMATION = 0.45;    // seconds a new scrap takes to "pop" in
+const POPUP_TIME = 0.9;          // "+10" floats this long after a pickup
+
+// Used when a planet has no "scrap" settings of its own.
+const DEFAULT_SCRAP = {
+  start: 18,               // scraps lying around when you arrive
+  maxActive: 30,           // most scraps on the planet at one time
+  interval: [5, 11],       // a new one every 5-11 seconds
+  minPlayerDistance: 320,  // never spawns closer to the player than this
+  valueMultiplier: 1,      // scrap is worth more on later planets
+  common: 68, rare: 25, epic: 7
+};
 const PICKUP_DISTANCE = 42;
 
 const RARITIES = {
@@ -18,40 +40,111 @@ export class ScrapSystem {
     this.inventorySections = [];
     this.pickupMessage = '';
     this.pickupTimer = 0;
-    this.credits = 0;
+    this.credits = 0;                             // the SCRAPS balance
+    this.found = { common: 0, rare: 0, epic: 0 }; // lifetime pickups (stats)
+    this.popups = [];                             // floating "+10" texts
+    this.planet = null;
+    this.spawnTimer = 3;
+    this.nextId = 1;
+    this.clock = 0;
+    this.onCollect = null;                        // set by main.js (sound)
     this.generate();
+  }
+
+  // Settings for the current planet (falls back to the defaults).
+  settings() {
+    return { ...DEFAULT_SCRAP, ...(this.planet?.scrap || {}) };
+  }
+
+  setPlanet(planet) {
+    this.planet = planet;
+  }
+
+  rollRarity() {
+    const s = this.settings();
+    const roll = Math.random() * (s.common + s.rare + s.epic);
+
+    if (roll < s.common) return 'common';
+    return roll < s.common + s.rare ? 'rare' : 'epic';
+  }
+
+  // Makes one scrap. Position is random but always valid: on the surface,
+  // away from the ship, and at least minPlayerDistance from the player.
+  spawnOne(playerX = null, playerY = null, rarity = null, x = null, y = null) {
+    const s = this.settings();
+    const radius = this.planet?.radius || SURFACE_RADIUS;
+
+    if (x === null) {
+      let ok = false;
+
+      for (let tries = 0; tries < 40 && !ok; tries++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.sqrt(Math.random()) * radius * 0.88;
+
+        x = Math.cos(angle) * distance;
+        y = Math.sin(angle) * distance;
+
+        ok =
+          Math.hypot(x, y) >= SHIP_CLEAR_RADIUS &&
+          (playerX === null || Math.hypot(x - playerX, y - playerY) >= s.minPlayerDistance);
+      }
+
+      if (!ok) return null;   // no valid spot this time; try again later
+    } else {
+      // Dropped at a given spot (a defeated monster): keep it on the surface.
+      const distance = Math.hypot(x, y);
+      const limit = radius * 0.94;
+
+      if (distance > limit) {
+        x = x / distance * limit;
+        y = y / distance * limit;
+      }
+    }
+
+    const kind = rarity || this.rollRarity();
+
+    const item = {
+      id: this.nextId++,
+      x,
+      y,
+      rarity: kind,
+      value: Math.round(RARITIES[kind].price * s.valueMultiplier),
+      rotation: Math.random() * Math.PI * 2,
+      size: 13 + Math.random() * 5,
+      age: 0,
+      collected: false
+    };
+
+    this.items.push(item);
+    return item;
+  }
+
+  // A defeated monster drops scrap where it fell.
+  dropAt(x, y, rarity = null, count = 1) {
+    for (let i = 0; i < count; i++) {
+      const spread = count > 1 ? 46 : 0;
+
+      this.spawnOne(
+        null, null, rarity,
+        x + (Math.random() - 0.5) * spread * 2,
+        y + (Math.random() - 0.5) * spread * 2
+      );
+    }
   }
 
   // planet = settings from planets.js (count, rarity mix, size).
   generate(planet = null) {
-    const scrap = planet?.scrap || { min: 20, max: 30, common: 68, rare: 25, epic: 7 };
-    const radius = planet?.radius || SURFACE_RADIUS;
+    if (planet) this.planet = planet;
 
-    const count = scrap.min + Math.floor(Math.random() * (scrap.max - scrap.min + 1));
-    const rarityPool = [
-      ...Array(scrap.common).fill('common'),
-      ...Array(scrap.rare).fill('rare'),
-      ...Array(scrap.epic).fill('epic')
-    ];
+    const count = this.settings().start;
 
     for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = Math.sqrt(Math.random()) * radius * 0.88;
-      const rarity = rarityPool[Math.floor(Math.random() * rarityPool.length)];
-
-      this.items.push({
-        id: i + 1,
-        x: Math.cos(angle) * distance,
-        y: Math.sin(angle) * distance,
-        rarity,
-        rotation: Math.random() * Math.PI * 2,
-        size: 13 + Math.random() * 5,
-        collected: false
-      });
+      const item = this.spawnOne();
+      if (item) item.age = SPAWN_ANIMATION;   // already there, no pop-in
     }
   }
 
-  // Replace all scrap on the surface with a fresh batch (each new day).
+  // Replace all scrap on the surface with a fresh starting batch.
   respawn(planet = null) {
     this.items = [];
     this.generate(planet);
@@ -89,6 +182,17 @@ export class ScrapSystem {
       : null;
   }
 
+  // Older saves kept scrap in an inventory until it was sold. Scrap now
+  // counts straight away, so pay out anything still waiting there.
+  cashInInventory() {
+    if (!Array.isArray(this.inventory) || !this.inventory.length) {
+      this.inventory = [];
+      return 0;
+    }
+
+    return this.sellAll().earnings;
+  }
+
   sellAll() {
     let earnings = 0;
 
@@ -106,9 +210,9 @@ export class ScrapSystem {
 
   getInventoryCounts() {
     return {
-      common: this.inventory.filter(item => item.rarity === 'common').length,
-      rare: this.inventory.filter(item => item.rarity === 'rare').length,
-      epic: this.inventory.filter(item => item.rarity === 'epic').length
+      common: this.found?.common || 0,
+      rare: this.found?.rare || 0,
+      epic: this.found?.epic || 0
     };
   }
 
@@ -121,26 +225,63 @@ export class ScrapSystem {
 
   update(playerX, playerY, dt) {
     this.pickupTimer = Math.max(0, this.pickupTimer - dt);
+    this.clock += dt;
+
+    for (const popup of this.popups) popup.time -= dt;
+    this.popups = this.popups.filter(popup => popup.time > 0);
 
     if (this.inventoryOpen) return;
 
+    const settings = this.settings();
+
+    // CONTINUOUS SPAWNING: a new scrap every few seconds, up to the maximum.
+    this.spawnTimer -= dt;
+
+    if (this.spawnTimer <= 0) {
+      const [shortest, longest] = settings.interval;
+      this.spawnTimer = shortest + Math.random() * (longest - shortest);
+
+      if (this.items.length < settings.maxActive) {
+        this.spawnOne(playerX, playerY);
+      }
+    }
+
+    // COLLECTING: touch a scrap to pick it up. It is removed from the list
+    // in the same step, so it can never be collected twice.
+    let collectedAny = false;
+
     for (const item of this.items) {
+      item.age = (item.age ?? SPAWN_ANIMATION) + dt;
+
       if (item.collected) continue;
 
       if (
         Math.hypot(item.x - playerX, item.y - playerY) <= PICKUP_DISTANCE
       ) {
         item.collected = true;
+        collectedAny = true;
 
-        this.inventory.push({
-          id: item.id,
-          rarity: item.rarity
+        const value = item.value ?? RARITIES[item.rarity].price;
+
+        this.credits += value;   // the balance updates immediately
+        this.found[item.rarity] = (this.found[item.rarity] || 0) + 1;
+
+        this.popups.push({
+          x: item.x,
+          y: item.y,
+          text: `+${value}`,
+          color: RARITIES[item.rarity].color,
+          time: POPUP_TIME
         });
 
-        this.pickupMessage = `${RARITIES[item.rarity].label} SCRAP COLLECTED`;
+        this.pickupMessage = `${RARITIES[item.rarity].label} SCRAP · +${value} · TOTAL ${this.credits}`;
         this.pickupTimer = 2.2;
+
+        if (this.onCollect) this.onCollect(item, value);
       }
     }
+
+    if (collectedAny) this.items = this.items.filter(item => !item.collected);
   }
 
   drawWorld(ctx, cameraX, cameraY, width, height) {
@@ -154,7 +295,52 @@ export class ScrapSystem {
         continue;
       }
 
-      this.drawItem(ctx, item, x, y);
+      // New scraps pop in (grow from nothing, with a small overshoot).
+      const grow = Math.min(1, (item.age ?? SPAWN_ANIMATION) / SPAWN_ANIMATION);
+      const scale = grow < 1 ? grow * (1.35 - 0.35 * grow) : 1;
+
+      this.drawItem(ctx, item, x, y, scale);
+
+      // A glint now and then, so scrap is easy to spot.
+      if (Math.floor(this.clock * 2 + item.id * 0.7) % 5 === 0) {
+        const gx = Math.round(x + item.size * 0.4);
+        const gy = Math.round(y - item.size * 0.7);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(gx, gy, 2, 6);
+        ctx.fillRect(gx - 2, gy + 2, 6, 2);
+      }
+    }
+
+    // Pickup animation: a ring bursts outward and "+value" floats up.
+    for (const popup of this.popups) {
+      const x = cameraX + popup.x;
+      const y = cameraY + popup.y;
+      const progress = 1 - popup.time / POPUP_TIME;
+
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, popup.time * 2.5);
+
+      ctx.strokeStyle = popup.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, 8 + progress * 26, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#fff3c4';
+      for (let i = 0; i < 6; i++) {
+        const angle = i * Math.PI / 3 + 0.4;
+        const reach = 10 + progress * 34;
+        ctx.fillRect(Math.round(x + Math.cos(angle) * reach), Math.round(y + Math.sin(angle) * reach), 2, 2);
+      }
+
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 13px monospace';
+      ctx.fillStyle = '#000';
+      ctx.fillText(popup.text, x + 1, y - 14 - progress * 30 + 1);
+      ctx.fillStyle = '#ffe9a0';
+      ctx.fillText(popup.text, x, y - 14 - progress * 30);
+      ctx.restore();
     }
   }
 
@@ -282,12 +468,12 @@ export class ScrapSystem {
     ctx.textAlign = 'right';
     ctx.fillStyle = '#e0c78e';
     ctx.font = 'bold 13px monospace';
-    ctx.fillText(`${this.credits} CREDITS`, x + panelWidth - 28, y + 40);
+    ctx.fillText(`${this.credits} SCRAPS`, x + panelWidth - 28, y + 40);
 
     const rows = [
-      ['common', 'COMMON SCRAP'],
-      ['rare', 'RARE SCRAP'],
-      ['epic', 'EPIC SCRAP']
+      ['common', 'COMMON SCRAP FOUND'],
+      ['rare', 'RARE SCRAP FOUND'],
+      ['epic', 'EPIC SCRAP FOUND']
     ];
 
     rows.forEach(([rarity, label], index) => {
@@ -319,7 +505,7 @@ export class ScrapSystem {
     ctx.fillStyle = '#e0c78e';
     ctx.font = 'bold 11px monospace';
     ctx.fillText(
-      `SELL VALUE: ${this.getInventoryValue()} CREDITS`,
+      'SCRAP ADDS TO YOUR BALANCE WHEN PICKED UP · K = MARTIAL ARTS',
       x + panelWidth - 28,
       y + 214
     );

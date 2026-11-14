@@ -171,6 +171,14 @@ export class World {
       name: 'TITAN'
     };
 
+    // Saturn: a huge backdrop behind Titan, like Jupiter behind Europa.
+    // "width" is how wide the picture (planet + rings) is drawn.
+    this.saturn = {
+      x: this.titan.x + 1000,
+      y: this.titan.y - 700,
+      width: 1150
+    };
+
     // Which hidden destinations are on the map (set by main.js from the
     // star maps the player has found).
     this.discovered = {};

@@ -139,7 +139,10 @@
     }
 
     #menu-jupiter img {
-      /* Two stacked frames: the top one fades in for a smooth crossfade. */
+      /* One frame at a time (no blending). The circle keeps only the
+         planet's disc, so its outline is the same perfect circle in
+         every frame. Delete the clip-path line to show the whole frame. */
+      clip-path: circle(30.4% at 49.9% 49.9%);
       position: absolute;
       inset: 0;
       display: block;
@@ -918,8 +921,7 @@
   <section id="main-menu">
     <!-- Animated Jupiter (32 frames, driven by src/menuJupiter.js) -->
     <div id="menu-jupiter" aria-hidden="true">
-      <img src="./img/jupiter/stable/jupiter_stable_01.png" alt="" draggable="false">
-      <img src="./img/jupiter/stable/jupiter_stable_02.png" alt="" draggable="false" style="opacity:0">
+      <img src="./img/jupiter/rotation/jupiter_rotation_00.png" alt="" draggable="false">
     </div>
 
     <header class="menu-header">

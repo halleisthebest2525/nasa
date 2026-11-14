@@ -69,6 +69,7 @@ export class MoonSurface {
   // its terrain. The terrain is seeded, so a planet always looks the same.
   setPlanet(planet) {
     this.planet = planet;
+    if (this.scraps) this.scraps.setPlanet(planet);   // scrap spawn rate / value for this planet
     this.craters = [];
     this.rocks = [];
     this.ridges = [];
@@ -231,6 +232,9 @@ export class MoonSurface {
     }
     this.drawPlayer(ctx, centerX, centerY);
 
+    // Martial arts: punches, kicks and hit sparks (set by main.js).
+    if (this.combat) this.combat.draw(ctx, cameraX, cameraY);
+
     // HARD PLAYER-CENTERED VISIBILITY
     this.drawVisibility(ctx, width, height);
 
@@ -240,6 +244,9 @@ export class MoonSurface {
       this.enemies.drawGlow(ctx, cameraX, cameraY, width, height);
     }
 
+    // Energy techniques also glow in the dark.
+    if (this.combat) this.combat.drawGlow(ctx, cameraX, cameraY);
+
     // UI stays visible above the darkness.
     this.drawInteractionPrompt(ctx, centerX, centerY);
 
@@ -248,6 +255,10 @@ export class MoonSurface {
     }
 
     this.drawControls(ctx, width, height);
+
+    // Skill bar + scrap balance (bottom centre).
+    if (this.combat) this.combat.drawHud(ctx, width, height);
+
     this.scraps.drawPickupMessage(ctx, width);
     this.scraps.drawInventory(ctx, width, height);
 
@@ -903,7 +914,8 @@ export class MoonSurface {
     const lines = [
       'WASD / ARROWS  MOVE',
       'SHIFT  RUN',
-      'SPACE / CLICK  ATTACK',
+      'SPACE / CLICK  PUNCH',
+      '1-6  SKILLS · K  MARTIAL ARTS',
       'E  ENTER SHIP',
       'B  INVENTORY',
       'F  FLASHLIGHT',
@@ -913,7 +925,7 @@ export class MoonSurface {
     ];
 
     lines.forEach((line, index) => {
-      ctx.fillText(line, width - 22, height - 180 + index * 18);
+      ctx.fillText(line, width - 22, height - 198 + index * 18);
     });
 
     ctx.restore();

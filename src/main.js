@@ -2083,7 +2083,7 @@ function loadPendingSave() {
 
       moonSurface.parts = liveParts;
 
-      // Max 2 modules on the Moon, epic at most (fixes older saves).
+      // Max 6 modules on the Moon, epic at most (fixes older saves).
       partsSystem.fixMoonItems();
     }
 

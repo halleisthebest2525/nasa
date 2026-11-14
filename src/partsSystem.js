@@ -64,8 +64,8 @@ function rollRarity(planet = 'moon') {
   return 'common';
 }
 
-// Exactly 2 modules lie on the Moon at a time.
-const PARTS_PER_MOON = 2;
+// Number of modules lying on the Moon at a time (balance setting).
+const PARTS_PER_MOON = 6;
 
 // Creates a fresh batch of modules scattered over the Moon.
 function createParts() {
@@ -255,7 +255,7 @@ export function attachPartsSystem(moonSurface) {
     parts.items = createParts();
   }
 
-  // Older saves could have more than 2 modules on the Moon, or mythic /
+  // Older saves could have too many modules on the Moon, or mythic /
   // legendary ones. If so, replace them with a normal batch.
   function fixMoonItems() {
     const MOON_RARITIES = ['common', 'rare', 'epic'];

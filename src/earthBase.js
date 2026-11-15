@@ -43,6 +43,28 @@ export function createEarthBase(game) {
 
     const warpTargets = game.getWarpTargets ? game.getWarpTargets() : [];
 
+    // NEXT DESTINATION + CHECKLIST of what has been done so far.
+    const mission = game.getMission ? game.getMission() : null;
+    const tick = done => `<span class="earth-tick ${done ? 'done' : ''}">${done ? '✔' : '□'}</span>`;
+
+    const missionHtml = mission ? `
+      <div class="earth-next">
+        <div class="earth-next-kicker">NEXT DESTINATION · ${mission.next.note}</div>
+        <div class="earth-next-title">${mission.next.title}</div>
+        <ol class="earth-next-steps">${mission.next.steps.map(step => `<li>${step}</li>`).join('')}</ol>
+      </div>
+
+      <div class="earth-check">
+        <div class="earth-check-title">MISSION CHECKLIST · WHAT YOU HAVE DONE SO FAR</div>
+        <div class="earth-check-grid">
+          ${mission.rows.map(row => `
+            <div class="earth-check-row ${row.done ? 'done' : ''} ${row.locked ? 'locked' : ''}">
+              <div class="earth-check-head">${tick(row.done)} ${row.label}${row.done && row.items.length ? ' · COMPLETE' : ''}</div>
+              ${row.items.map(item => `<div class="earth-check-item ${item.done ? 'done' : ''}">${tick(item.done)} ${item.label}</div>`).join('')}
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+
     const slots = parts.types().map(type => {
       const options = parts.getSlotOptions(type).map(option => `
         <button
@@ -67,7 +89,7 @@ export function createEarthBase(game) {
 
     screen.innerHTML = `
       <style>
-        .earth-panel { width:min(760px,94vw); max-height:92vh; overflow-y:auto; padding:26px 28px;
+        .earth-panel { width:min(860px,94vw); max-height:92vh; overflow-y:auto; padding:26px 28px;
           background:#121a22; border:1px solid #5d7d94; box-shadow:0 20px 80px #000; }
         .earth-top { display:flex; gap:22px; align-items:center; margin-bottom:18px; flex-wrap:wrap; }
         .earth-ship { width:150px; height:120px; display:grid; place-items:center;
@@ -95,6 +117,21 @@ export function createEarthBase(game) {
         .earth-stat b { color:#e2ebf0; font-weight:normal; }
         .earth-stat .up { color:#7fdc6a; font-weight:bold; }
         .earth-stat .down { color:#ff7a66; font-weight:bold; }
+        .earth-next { margin:0 0 12px; padding:12px 14px; background:#1a2a14; border:1px solid #a9c48e;
+          box-shadow:0 0 22px rgba(150,200,110,.18); }
+        .earth-next-kicker { font-size:10px; letter-spacing:3px; color:#a9c48e; }
+        .earth-next-title { font-size:22px; letter-spacing:4px; color:#f0f7dc; font-weight:bold; margin:3px 0 6px; }
+        .earth-next-steps { margin:0; padding-left:20px; font-size:11px; line-height:1.7; color:#d5e2c0; letter-spacing:1px; }
+        .earth-check { margin:0 0 12px; padding:10px 12px; background:#0b1117; border:1px solid #2d3f4c; }
+        .earth-check-title { font-size:11px; letter-spacing:2px; color:#8fb3cc; margin-bottom:8px; }
+        .earth-check-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:8px 14px; }
+        .earth-check-row.locked { opacity:.45; }
+        .earth-check-head { font-size:12px; font-weight:bold; letter-spacing:1px; color:#cfd8de; margin-bottom:3px; }
+        .earth-check-row.done .earth-check-head { color:#8fdc78; }
+        .earth-check-item { font-size:10px; letter-spacing:1px; color:#7f8f9a; margin-left:14px; line-height:1.6; }
+        .earth-check-item.done { color:#b9d8ae; }
+        .earth-tick { display:inline-block; width:14px; color:#5d6f7a; }
+        .earth-tick.done { color:#8fdc78; }
         .earth-launch { width:100%; margin-top:18px; padding:14px; background:#3f6a8a; color:#eef6fb;
           border:1px solid #8fc3e8; font:bold 14px monospace; letter-spacing:3px; cursor:pointer; }
         .earth-launch:hover { background:#4f80a6; }
@@ -118,6 +155,8 @@ export function createEarthBase(game) {
             </div>
           </div>
         </div>
+
+        ${missionHtml}
 
         <div class="earth-stats">
           <div class="earth-stats-title" id="earth-stats-title"></div>

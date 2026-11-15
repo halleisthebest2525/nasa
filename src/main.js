@@ -100,6 +100,8 @@ const earthBase = createEarthBase({
   onLaunch: () => startEarthLaunch(),
   // Completed worlds can be warped to straight from the shipyard.
   getWarpTargets: () => completedWorlds().map(id => ({ id, name: PLANETS[id].name })),
+  // Checklist of what has been done + what to do next.
+  getMission: () => missionStatus(),
   onWarp(id) {
     warpMenu.flash();
     warpTo(id);
@@ -2334,6 +2336,102 @@ function knowsRoute(id) {
     planetStates[id] ||
     (landedOnMoon && landedPlanet === id)
   );
+}
+
+// ==========================================
+// MISSION STATUS (shown in the Earth shipyard)
+// A checklist of everything done so far, and the next thing to do.
+// ==========================================
+const MISSION_WORLDS = ['moon', 'mars', 'europa', 'titan'];
+const WORLD_BOSSES = {
+  mars: { name: 'ARES COLOSSUS', defeated: () => marsMonsters.isBossDefeated() },
+  europa: { name: 'CRYOLITH LEVIATHAN', defeated: () => europaMonsters.isBossDefeated() }
+};
+const NEXT_MAP = { moon: 'MARS', mars: 'EUROPA', europa: 'TITAN', titan: 'URANUS' };
+const WORLD_DIRECTION = {
+  moon: 'RIGHT AND UP FROM EARTH',
+  mars: 'UP AND LEFT FROM EARTH',
+  europa: 'UP AND LEFT, PAST MARS AND THE ASTEROID BELT',
+  titan: 'STRAIGHT LEFT OF EUROPA'
+};
+
+// Modules found on a world (works for the current world and stored ones).
+function worldModules(id) {
+  const items = id === landedPlanet
+    ? partsSystem.getParts().items
+    : planetStates[id]?.partItems;
+
+  if (!items) return null;
+
+  const normal = items.filter(part => !part.reward);
+  return { found: normal.filter(part => part.collected).length, total: normal.length };
+}
+
+function missionStatus() {
+  const progress = chestQuest.getState();
+  const rows = [{ label: 'LAUNCHED FROM EARTH', done: launchComplete, items: [] }];
+  let next = null;
+
+  for (const id of MISSION_WORLDS) {
+    const name = PLANETS[id].name;
+    const beaten = Boolean(progress.opened[id]);
+    const modules = worldModules(id);
+    const total = PLANETS[id].modules;
+    const found = beaten && !modules ? total : modules ? modules.found : 0;
+    const count = modules ? modules.total : total;
+    // "Landed" = some progress exists there (or it is completed).
+    const landed = beaten || found > 0 || Boolean(planetStates[id]) || (id === landedPlanet && id !== 'moon');
+    const boss = WORLD_BOSSES[id];
+    const route = id === 'moon' || knowsRoute(id);
+
+    const items = [
+      { label: id === 'moon' ? 'ROUTE KNOWN' : `${name} STAR MAP`, done: route },
+      { label: 'LANDED', done: landed },
+      { label: `MODULES ${found} / ${count}`, done: found >= count }
+    ];
+
+    if (boss) items.push({ label: `BOSS: ${boss.name}`, done: boss.defeated() });
+
+    items.push({ label: `CHEST OPENED (${NEXT_MAP[id]} STAR MAP)`, done: beaten });
+
+    rows.push({ label: name, done: beaten, items, locked: !route });
+
+    // The next thing to do = the first world that is not completed.
+    if (!next && !beaten) {
+      const left = count - found;
+      const steps = [];
+
+      if (!landed) steps.push(`FLY TO ${name} (${WORLD_DIRECTION[id]}) AND LAND`);
+      if (left > 0) steps.push(`COLLECT ${left} MORE MODULE${left === 1 ? '' : 'S'}`);
+      if (boss && !boss.defeated()) steps.push(`DEFEAT ${boss.name} (IT GUARDS THE CHEST)`);
+      steps.push(`OPEN THE CHEST FOR THE ${NEXT_MAP[id]} STAR MAP`);
+      steps.push('COME BACK TO EARTH AND FIT YOUR NEW MODULES');
+
+      next = {
+        title: name,
+        direction: WORLD_DIRECTION[id],
+        steps,
+        note: landed ? 'YOU HAVE STARTED THIS WORLD: GO BACK AND FINISH IT' : 'A NEW WORLD'
+      };
+    }
+  }
+
+  rows.push({
+    label: `MARTIAL ARTS LEARNED ${martialArts.unlockedCount()} / 5`,
+    done: martialArts.unlockedCount() >= 5,
+    items: []
+  });
+
+  if (!next) {
+    next = {
+      title: 'ALL WORLDS COMPLETE',
+      direction: '',
+      steps: ['EVERY WORLD IN THE GAME SO FAR IS DONE', 'URANUS IS COMING IN A LATER UPDATE'],
+      note: 'WELL DONE'
+    };
+  }
+
+  return { rows, next };
 }
 
 // Where each hidden destination's star map comes from.

@@ -4,7 +4,10 @@ export const CONFIG = {
   worldSize: 100000,
   starCount: 700,
   // Same asteroid density as before (140 in the old 30000 space).
-  asteroidCount: 300,
+  // Random asteroids in the inner system (Earth, Moon, Mars).
+  asteroidCount: 520,
+  // Random asteroids past the Asteroid Belt (around Europa and Titan).
+  outerAsteroidCount: 260,
   ship: {
     acceleration: 170,
     reverse: 90,

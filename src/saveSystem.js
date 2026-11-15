@@ -88,7 +88,11 @@ export function applySnapshot(save, objects) {
     objects.onFoot.clearKeys();
   }
 
-  if (Array.isArray(save.world?.asteroids) && objects.world) {
+  if (
+    Array.isArray(save.world?.asteroids) &&
+    objects.world &&
+    save.world.asteroids.length >= objects.world.asteroids.length
+  ) {
     objects.world.asteroids = save.world.asteroids;
   }
 }

@@ -165,8 +165,8 @@ export class World {
     // TITAN: moon of Saturn, to the LEFT of Europa (farther out).
     // Needs the Titan star map from the Europa chest.
     this.titan = {
-      x: -39500,
-      y: -24500,
+      x: -33000,
+      y: -24000,
       radius: 170,
       name: 'TITAN'
     };
@@ -178,6 +178,42 @@ export class World {
       y: this.titan.y - 700,
       width: 1150
     };
+
+    // OUTER SYSTEM: loose asteroids past the belt, in the region the
+    // player flies through (around Europa and Titan).
+    const landingSpots = [this.europa, this.titan];
+
+    for (let i = 0; i < CONFIG.outerAsteroidCount; i++) {
+      let x = 0;
+      let y = 0;
+
+      for (let tries = 0; tries < 60; tries++) {
+        x = random(-43000, -15000);
+        y = random(-36000, -12000);
+
+        const clear =
+          Math.hypot(x, y) > BELT.outer + 500 &&
+          landingSpots.every(body => Math.hypot(x - body.x, y - body.y) > 800);
+
+        if (clear) break;
+      }
+
+      this.asteroids.push({
+        id: this.asteroids.length,
+        x,
+        y,
+        size: Math.floor(random(24, 65)),
+        rotation: random(0, Math.PI * 2),
+        shade: Math.floor(random(0, 3))
+      });
+    }
+
+    // Keep every asteroid away from the Moon's landing area as well.
+    for (const asteroid of this.asteroids) {
+      if (Math.hypot(asteroid.x - this.moon.x, asteroid.y - this.moon.y) < 600) {
+        asteroid.x += 1200;
+      }
+    }
 
     // Which hidden destinations are on the map (set by main.js from the
     // star maps the player has found).

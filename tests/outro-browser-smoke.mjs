@@ -9,7 +9,8 @@ import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
 
 const root = path.resolve(import.meta.dirname, '..');
-const shots = process.argv[2] ? path.resolve(process.argv[2]) : null;
+const integration = process.argv.includes('--integration');
+const shots = process.argv[2] && !integration ? path.resolve(process.argv[2]) : null;
 if (shots) fs.mkdirSync(shots, { recursive: true });
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'nasareth-outro-'));
 const browserPath = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -21,6 +22,10 @@ const server = http.createServer((req, res) => {
   fs.readFile(file, (error, data) => {
     if (error) { res.writeHead(404).end(); return; }
     res.setHeader('Content-Type', TYPES[path.extname(file)] || 'application/octet-stream');
+    // Expose setup handles only in this test server, never in the game files.
+    if (integration && file === path.join(root, 'src', 'main.js')) {
+      data = Buffer.concat([data, Buffer.from('\nwindow.__outroTest = { partsSystem, earthBase };\n')]);
+    }
     res.end(data);
   });
 });
@@ -73,6 +78,60 @@ try {
   await send('Runtime.enable');
   await send('Page.enable');
   await size(1280, 720);
+  if (integration) {
+    await send('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/' });
+    await wait(800);
+    await evaluate(`(async () => {
+      localStorage.setItem('nasareth.pending-load', JSON.stringify({ launchComplete: true }));
+      await import('./src/main.js');
+      document.querySelector('#main-menu').classList.add('menu-hidden');
+      const { partsSystem, earthBase } = window.__outroTest;
+      for (const type of partsSystem.types()) {
+        partsSystem.getParts().inventory.push({ type, rarity: 'legendary' });
+      }
+      earthBase.open();
+    })()`);
+    const types = await evaluate('window.__outroTest.partsSystem.types()');
+    assert.equal(types.length, 5);
+    assert.equal(await evaluate('!!document.querySelector(".nso-stage")'), false, 'owning modules alone does not trigger the ending');
+    const click = async selector => {
+      const point = await evaluate(`(() => {
+        const node = document.querySelector(${JSON.stringify(selector)});
+        node.scrollIntoView({ block: 'center' });
+        const r = node.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      })()`);
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
+    };
+    for (const type of types.slice(0, -1)) {
+      await click(`.earth-part[data-type="${type}"][data-rarity="legendary"]`);
+      assert.equal(await evaluate('!!document.querySelector(".nso-stage")'), false, 'partial fitting does not trigger the ending');
+    }
+    await click(`.earth-part[data-type="${types.at(-1)}"][data-rarity="legendary"]`);
+    console.log('Fitted modules:', await evaluate('window.__outroTest.partsSystem.getInstalled()'));
+    console.log('Browser errors:', errors.map(e => e.exception?.description || e.text), warnings);
+    const deadline = Date.now() + 15000;
+    while (!await evaluate('!!document.querySelector(".nso-stage")?.__outro?.scene')) {
+      if (Date.now() > deadline) throw Error('Final legendary fitting did not start the cutscene');
+      await wait(100);
+    }
+    assert.equal(await evaluate('document.querySelectorAll(".nso-stage").length'), 1);
+    const before = await evaluate('document.querySelector(".nso-stage").__outro.time');
+    await wait(1000);
+    assert.ok(await evaluate('document.querySelector(".nso-stage").__outro.time') > before + 500, 'cutscene clock advances');
+    await click('.nso-skip');
+    await wait(400);
+    assert.equal(await evaluate('!!document.querySelector(".nso-stage")'), false);
+    assert.equal(await evaluate('window.__outroTest.earthBase.isOpen()'), true);
+    await click(`.earth-part[data-type="${types[0]}"][data-rarity="legendary"]`);
+    assert.equal(await evaluate('!!document.querySelector(".nso-stage")'), false, 'refitting does not replay the ending');
+    const saved = await evaluate('window.NasarethGame.save("Ending integration test")');
+    assert.equal(saved.snapshot.outroPlayed, true, 'ending flag persists in the save');
+    assert.deepEqual(errors.map(e => e.exception?.description || e.text), []);
+    assert.deepEqual(warnings, []);
+    console.log('PASS: owning five legendary modules is insufficient; fitting all five starts one cutscene, playback advances, Skip returns to the shipyard, refitting does not replay, and the completion flag saves.');
+  } else {
   await send('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/NASARETH_FINAL_CUTSCENE/index.html' });
   await wait(800);
   await evaluate(`import('./cutscene.js').then(m => { window.__outro = m; return m.preloadOutro(); }).then(list => list.filter(Boolean).length)`)
@@ -167,6 +226,7 @@ try {
   assert.deepEqual(errors.map(e => e.exception?.description || e.text), []);
   assert.deepEqual(warnings, []);
   console.log('PASS: 23 frames load, play in order, captions stay above the art, skip and completion work.');
+  }
 } finally {
   socket?.close();
   browser.kill();

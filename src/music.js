@@ -4,7 +4,7 @@
 // 'travel', 'moon', 'shop', 'danger') and the matching track fades in while
 // the old one fades out. Track files are listed in music.txt.
 //
-//   travel  Going to Moon.mp3   flying through open space, and everything
+//   travel  Space Background.mp3   flying through open space, and everything
 //                               at Earth (launch pad, orbit, shipyard)
 //   moon / mars / europa / titan / uranus   on (or close to) that world
 //   shop    Shopping shop.mp3   the ship computer / shop
@@ -94,17 +94,22 @@ export function createMusic() {
     // Does nothing when music.txt has no entry with this name.
     setLoop(name, on, volume = 0.4) {
       if (!paths[name]) return;
+      if (!on && !loops[name]) return;
 
       if (!loops[name]) {
         loops[name] = new Audio(paths[name]);
         loops[name].loop = true;
         loops[name].volume = volume;
+        loops[name].preload = 'auto';
       }
 
       const audio = loops[name];
 
       if (on && audio.paused) audio.play().catch(() => {});
-      else if (!on && !audio.paused) audio.pause();
+      else if (!on && !audio.paused) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
     },
 
     // Short one-shot sound on top of the music.

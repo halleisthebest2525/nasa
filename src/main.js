@@ -2622,10 +2622,23 @@ function updateMusic(dt) {
 
   music.update(dt, situation, paused);
 
-  // Optional footsteps loop ("walk=..." in music.txt) while walking.
-  music.setLoop('walk',
-    !paused && !gameOver && !sleeping &&
-    ((gameMode === 'moon' && moonSurface.moving) || (gameMode === 'walking' && onFoot.moving)));
+  // Walking and running have separate recordings; only one plays at a time.
+  const moving = !paused && !gameOver && !sleeping && !computerOpen &&
+    !warpTravel.isActive() && !isGaugeChallengeActive() &&
+    !earthBase.isOpen() && !planetLog.isOpen() && !skillMenu.isOpen() &&
+    !warpMenu.isOpen() && !howToPlay.isOpen() &&
+    !launchConfirmationOpen && !sleepConfirmationOpen &&
+    !moonSurface.scraps.inventoryOpen && isMovingOnFoot() &&
+    ((gameMode === 'moon' && moonSurface.moving) || (gameMode === 'walking' && onFoot.moving));
+  const running = moving && isRunning();
+  // Stop the previous gait before starting the new one in either direction.
+  if (running) {
+    music.setLoop('walk', false);
+    music.setLoop('run', true);
+  } else {
+    music.setLoop('run', false);
+    music.setLoop('walk', moving);
+  }
 }
 
 // COLLISION DETECTION
@@ -3525,7 +3538,7 @@ function frame(time) {
             y: moonSurface.y,
             damage(amount, cause = 'ATTACKED BY A LUNAR CRAWLER') {
               survival.health = Math.max(0, survival.health - amount);
-              music.sting('hit');   // optional "hit=..." sound in music.txt
+              music.sting('hit');   // Monster hit.mp3: player damaged by a monster
               playerHurtFlash = 1;
 
               if (survival.health <= 0) {

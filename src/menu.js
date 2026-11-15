@@ -1,5 +1,6 @@
 
 import { readSaves, removeSave } from './saveSystem.js';
+import { playPrologue } from './prologue.js';
 import './menuJupiter.js'; // animated Jupiter on the launch page
 
 const menu = document.querySelector('#main-menu');
@@ -241,7 +242,10 @@ async function startGame(snapshot = null) {
     localStorage.removeItem('nasareth.pending-load');
   }
 
+  let closePrologue = null;
   try {
+    // Story belongs to a new expedition, never app startup or save loading.
+    if (!snapshot) closePrologue = await playPrologue();
     await import('./main.js');
 
     // Stop menu music when the expedition begins.
@@ -252,7 +256,9 @@ async function startGame(snapshot = null) {
 
     game.classList.add('game-active');
     menu.classList.add('menu-hidden');
+    closePrologue?.();
   } catch (error) {
+    closePrologue?.();
     console.error('Project: Nasareth failed to start:', error);
 
     gameStarted = false;

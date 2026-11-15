@@ -58,7 +58,7 @@ const BOSS = {
   lairX: -3000,          // guards the bottom-left of Titan
   lairY: 2800,
   scale: 2.1,
-  hp: 52,                // much easier (was 95)
+  hp: 66,                // a bit harder than 52 (was 95 at first)
   // Phase 2 below 65% HP, phase 3 below 30%.
   phaseAt: [0.65, 0.3],
   moveSpeed: [50, 80, 95],
@@ -69,9 +69,9 @@ const BOSS = {
   keepDistance: 230,     // it hovers at range instead of charging in
 
   // A. Gas Burst: clouds that drift at the player and linger.
-  burst: { range: 560, clouds: 3, cooldown: [5.2, 4.4, 3.6], speed: 210, travel: 1.2, radius: 82, time: 5, tick: 0.5, damage: 2 },
+  burst: { range: 560, clouds: 3, cooldown: [4.8, 4.0, 3.3], speed: 210, travel: 1.2, radius: 82, time: 5, tick: 0.5, damage: 2 },
   // B. Nitrogen Cyclone: a vortex that pulls the player in.
-  cyclone: { warn: 1.2, time: 3, radius: 310, pull: 120, coreRadius: 95, tick: 0.5, damage: 3, cooldown: [0, 12, 10] },
+  cyclone: { warn: 1.2, time: 3, radius: 310, pull: 120, coreRadius: 95, tick: 0.5, damage: 4, cooldown: [0, 11, 9] },
   // C. Vapor Shift: dissolve, vanish, reform somewhere else.
   shift: { out: 0.45, hidden: 0.9, back: 0.45, cooldown: [0, 9, 7], minFromPlayer: 240, maxFromPlayer: 420 }
 };
@@ -86,7 +86,7 @@ const COLLAPSE = {
   radius: 390,           // warning circle = blast size
   collapseTime: 0.5,     // the vortex shrinks into a glowing sphere
   waveTime: 0.45,        // then the shockwave expands
-  damage: 16,
+  damage: 20,
   recoverTime: 2,
   vulnerableMultiplier: 1.25
 };

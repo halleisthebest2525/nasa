@@ -51,14 +51,14 @@ const BOSS = {
   lairX: -2800,          // guards the top-left of Mars
   lairY: -2600,
   scale: 1.35,           // 175x113 frame -> ~236 px wide
-  hp: 22,                // much easier (was 60, then 38)
+  hp: 28,                // a bit harder than 22 (was 60 at first)
   phase2At: 0.5,         // below 50% HP: enraged
   moveSpeed: [60, 85],   // phase 1, phase 2
   aggroRange: 520,
   leashRange: 1000,      // won't follow you farther than this from its lair
   bodyRadius: 70,
-  slam: { range: 135, radius: 145, damage: 10, cooldown: [3.8, 3.0] },
-  eruption: { minRange: 170, maxRange: 540, radius: 75, damage: 12, cooldown: 6.5 }
+  slam: { range: 135, radius: 145, damage: 12, cooldown: [3.5, 2.7] },
+  eruption: { minRange: 170, maxRange: 540, radius: 75, damage: 15, cooldown: 6 }
 };
 
 const BOSS_ANIMS = {

@@ -56,7 +56,7 @@ const BOSS = {
   lairX: 2900,           // guards the top-right of Europa
   lairY: -2700,
   scale: 2.2,            // body ~275 px wide: about 5-6x a Frost Skitter
-  hp: 42,                // much easier (was 110, then 72)
+  hp: 54,                // a bit harder than 42 (was 110 at first)
   // Phase 2 below 60% HP (adds Ice Spires), phase 3 below 30% (faster, double spires).
   phaseAt: [0.6, 0.3],
   moveSpeed: [55, 75, 95],
@@ -64,9 +64,9 @@ const BOSS = {
   leashRange: 1300,      // won't follow you farther than this from its lair
   bodyRadius: 110,
   // Ice Slam: a shockwave ring around the boss.
-  slam: { range: 185, radius: 215, damage: 11, cooldown: [4.0, 3.4, 2.8] },
+  slam: { range: 185, radius: 215, damage: 13, cooldown: [3.7, 3.1, 2.5] },
   // Ice Spire: crystals erupt where the player WAS standing.
-  spire: { minRange: 200, maxRange: 640, radius: 80, damage: 13, cooldown: [0, 6, 4.5] }
+  spire: { minRange: 200, maxRange: 640, radius: 80, damage: 16, cooldown: [0, 5.5, 4] }
 };
 
 // ABSOLUTE ZERO · FROZEN DOMINION
@@ -76,7 +76,7 @@ const ZERO = {
   chargeTime: 1.5,       // boss stands still, crystals glow, warning circle
   radius: 340,           // shockwave / frozen ground size
   waveTime: 0.45,        // shockwave expands over this long
-  damage: 15,
+  damage: 18,
   groundTime: 5,         // frozen ground lasts this long
   slow: 0.35,            // player is 35% slower on frozen ground
   pillarCount: 3,

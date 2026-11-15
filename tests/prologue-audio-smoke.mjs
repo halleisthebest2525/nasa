@@ -1,4 +1,5 @@
-// Optional real-browser smoke test. Run with node tests/warp-browser-smoke.mjs.
+// Optional real-browser portability and audio check:
+// node tests/prologue-audio-smoke.mjs
 // Uses an installed Chrome and the built-in DevTools protocol; no dependencies.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -11,7 +12,13 @@ const root = path.resolve(import.meta.dirname, '..');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'nasareth-warp-'));
 const browserPath = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const server = http.createServer((req, res) => {
-  const file = path.resolve(root, '.' + decodeURIComponent(req.url.split('?')[0] === '/' ? '/index.html' : req.url.split('?')[0]));
+  const requested = decodeURIComponent(req.url.split('?')[0]);
+  // Mimic a shared/nested deployment where iframes are blocked and the old
+  // standalone cutscene file was not copied. The bundled story must still run.
+  res.setHeader('Content-Security-Policy', "frame-src 'none'");
+  if (requested.endsWith('/prologue.html')) { res.writeHead(404).end(); return; }
+  const relative = requested.replace(/^\/portable(?=\/)/, '');
+  const file = path.resolve(root, '.' + (relative === '/' ? '/index.html' : relative));
   if (!file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
   fs.readFile(file, (error, data) => {
     if (error) { res.writeHead(404).end(); return; }
@@ -61,15 +68,16 @@ try {
   await send('Runtime.enable');
   await send('Page.enable');
   await send('Page.addScriptToEvaluateOnNewDocument', { source: "window.__audioPlayers=[];window.Audio=new Proxy(window.Audio,{construct(Type,args){const audio=Reflect.construct(Type,args);window.__audioPlayers.push(audio);return audio;}});" });
-  await send('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port });
+  await send('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/portable/' });
   const until = async (expression, limit=15000) => {
     const deadline=Date.now()+limit;
     while(Date.now()<deadline){if(await evaluate(expression))return;await wait(100);}
     throw Error('Timed out waiting for '+expression);
   };
   await until('!!document.querySelector("#singleplayer-button") && window.__audioPlayers?.length>0');
+  assert.equal(await evaluate('!!document.querySelector("#run-prologue")'), false);
   const click = async selector => {
-    const point=await evaluate('(()=>{const r=document.querySelector('+JSON.stringify(selector)+').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()');
+    const point=await evaluate('(()=>{const parts='+JSON.stringify(selector)+'.split(" >>> ");let node=document.querySelector(parts.shift());for(const part of parts)node=node.shadowRoot.querySelector(part);const r=node.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()');
     await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
     await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
   };
@@ -81,6 +89,10 @@ try {
   const first=await state();
   await wait(1800);
   const second=await state();
+  const story=await evaluate('(()=>{const root=document.querySelector("#run-prologue").shadowRoot;return {running:root.querySelector("#stage").classList.contains("play"),animation:getComputedStyle(root.querySelector(".crawl")).animationPlayState,frames:document.querySelectorAll("iframe").length};})()');
+  assert.equal(story.running,true);
+  assert.equal(story.animation,'running');
+  assert.equal(story.frames,0);
   assert.equal(second.prologue,true);
   assert.equal(second.paused,false);
   assert.equal(second.muted,false);
@@ -89,13 +101,13 @@ try {
   assert.ok(second.time-first.time>1,'Audio playback did not advance');
   assert.ok(!second.error);
   console.log('CUTSCENE AUDIO: '+JSON.stringify({first,second}));
-  await click('#run-prologue > button');
+  await click('#run-prologue >>> #skip');
   await until('!!window.NasarethGame && document.querySelector("#game").classList.contains("game-active")',30000);
   const after=await state();
   assert.equal(after.prologue,false);
   assert.equal(after.paused,true);
   assert.deepEqual(errors,[]);
-  console.log('PASS: real user click starts menu music, playback advances during the cutscene, and Skip stops it for gameplay.');
+  console.log('PASS: cutscene scrolls and plays music under a nested URL with iframes blocked and prologue.html unavailable; Skip starts gameplay.');
 
 } finally {
   socket?.close();

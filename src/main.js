@@ -371,6 +371,7 @@ function switchPlanet(id) {
   } else {
     // First visit: fresh scrap and modules with this planet's odds.
     moonSurface.scraps.respawn(PLANETS[id]);
+    partsSystem.getParts().items = [];
     partsSystem.respawn(id);
   }
 
@@ -443,6 +444,7 @@ function applyFlashlight() {
 
   moonSurface.flashlight = survival.flashlightOn
     ? {
+      level,   // also sets the size of the circle of view (moonSurface.js)
       length: BEAM_BASE_LENGTH + level * BEAM_LENGTH_PER_LEVEL,
       halfAngle: BEAM_BASE_HALF_ANGLE + level * BEAM_HALF_ANGLE_PER_LEVEL
     }
@@ -490,7 +492,7 @@ window.addEventListener('blur', () => {
 function isMovingOnFoot() {
   return [
     'arrowup', 'arrowdown',
-    'arrowleft', 'arrowright'
+    'arrowleft', 'arrowright', 'w', 'a', 's', 'd'
   ].some(key => heldKeys.has(key));
 }
 
@@ -2531,7 +2533,10 @@ function monstersAreHunting() {
 
   const info = enemies.list();
   const group = Array.isArray(info) ? info : info.stalkers || [];
-  const view = moonSurface.flashlight ? moonSurface.flashlight.length : 170;
+  const view = Math.max(
+    moonSurface.lastViewRadius || 170,
+    moonSurface.flashlight ? moonSurface.flashlight.length : 0
+  );
   const MONSTER_MUSIC_RADIUS = view + MONSTER_VIEW_MARGIN;
   const BOSS_MUSIC_RADIUS = view + BOSS_VIEW_MARGIN;
   const near = (monster, radius) =>
@@ -2711,6 +2716,7 @@ function createSnapshot() {
     // Saving during sleep stores the state as if the player already woke up.
     gameMode: sleeping ? modeBeforeSleep : gameMode,
     gameMinutes: sleeping ? 7 * 60 : gameMinutes,
+    pendingSleepRecovery: sleeping,
     hull,
     landedOnMoon,
     landedPlanet,
@@ -2781,7 +2787,14 @@ function createSnapshot() {
 }
 
 function saveCurrentGame(name = 'Expedition') {
-  const saved = writeSave(name, createSnapshot());
+  let saved;
+  try {
+    saved = writeSave(name, createSnapshot());
+  } catch (error) {
+    console.error('Could not save game:', error);
+    showTransmission('SAVE FAILED\nCHECK AVAILABLE BROWSER STORAGE', '#e18b58');
+    return null;
+  }
 
   window.dispatchEvent(new CustomEvent('nasareth:saves-updated'));
 
@@ -2878,6 +2891,11 @@ function loadPendingSave() {
     }
 
     applyFlashlight();
+
+    if (save.pendingSleepRecovery) {
+      modeBeforeSleep = gameMode;
+      finishSleep();
+    }
 
     updateClockDisplay();
     updateHull();
@@ -3393,7 +3411,10 @@ function frame(time) {
       const respawnView = {
         x: moonSurface.x,
         y: moonSurface.y,
-        viewDistance: moonSurface.flashlight ? moonSurface.flashlight.length : 170
+        viewDistance: Math.max(
+          moonSurface.lastViewRadius || 170,
+          moonSurface.flashlight ? moonSurface.flashlight.length : 0
+        )
       };
       crawlers.tickRespawns(dt, respawnView);
       marsMonsters.tickRespawns(dt, respawnView);
@@ -3429,9 +3450,9 @@ function frame(time) {
         }
 
         if (gameMode === 'driving') {
-          // Arrow keys only (WASD is switched off).
-          const forwardPressed = heldKeys.has('arrowup');
-          const reversePressed = heldKeys.has('arrowdown');
+          // Arrow keys and WASD use the same thrust and fuel rules.
+          const forwardPressed = heldKeys.has('arrowup') || heldKeys.has('w');
+          const reversePressed = heldKeys.has('arrowdown') || heldKeys.has('s');
 
           const engineActive = forwardPressed || reversePressed;
           const boostRequested = forwardPressed && heldKeys.has('shift');

@@ -17,8 +17,8 @@ const SECTIONS = [
   {
     title: 'FLYING (IN SPACE)',
     lines: [
-      ['↑ / ↓', 'thrust forward / backward'],
-      ['← / →', 'turn'],
+      ['W / S or ↑ / ↓', 'thrust forward / backward'],
+      ['A / D or ← / →', 'turn'],
       ['SHIFT', 'boost (uses more fuel)'],
       ['SPACE', 'brake (there is no air: the ship keeps drifting)'],
       ['M', 'system map'],
@@ -29,7 +29,7 @@ const SECTIONS = [
   {
     title: 'ON A WORLD',
     lines: [
-      ['ARROW KEYS', 'walk'],
+      ['WASD / ARROW KEYS', 'walk'],
       ['SHIFT', 'run (uses stamina)'],
       ['F', 'flashlight'],
       ['Q', 'metal detector (beeps near scrap, modules and the chest)'],

@@ -8,7 +8,14 @@ const RUN_MULTIPLIER = 1.2;
 const EXHAUSTED_MULTIPLIER = 0.45;
 
 // How far the player can see around themselves without a flashlight.
-const AMBIENT_LIGHT_RADIUS = 105;
+// THE CIRCLE OF VIEW around the player.
+// Without a flashlight (or with it switched off) it is this big.
+const AMBIENT_LIGHT_RADIUS = 170;
+// With the flashlight on, the circle grows with its level. At the top
+// level it reaches this share of the screen's diagonal, so almost the
+// whole screen is clear.
+const MAX_VIEW_SCREEN_SHARE = 0.62;
+const MAX_FLASHLIGHT_LEVEL = 4;
 const SHIP_DISTANCE = 155;
 
 const VISIBILITY_RADIUS = 50;
@@ -167,11 +174,11 @@ export class MoonSurface {
     let dx = 0;
     let dy = 0;
 
-    // Arrow keys only (WASD is switched off).
-    if (this.keys.has('arrowup')) dy -= 1;
-    if (this.keys.has('arrowdown')) dy += 1;
-    if (this.keys.has('arrowleft')) dx -= 1;
-    if (this.keys.has('arrowright')) dx += 1;
+    // Arrow keys and WASD.
+    if (this.keys.has('arrowup') || this.keys.has('w')) dy -= 1;
+    if (this.keys.has('arrowdown') || this.keys.has('s')) dy += 1;
+    if (this.keys.has('arrowleft') || this.keys.has('a')) dx -= 1;
+    if (this.keys.has('arrowright') || this.keys.has('d')) dx += 1;
 
     this.moving = dx !== 0 || dy !== 0;
 
@@ -638,13 +645,29 @@ export class MoonSurface {
   // Darkness around the player. With the flashlight on, a beam of light
   // also points the way the player is facing.
   // this.flashlight is set by main.js: { length, halfAngle } or null (off).
+  // How far the player can see right now (radius of the clear circle).
+  viewRadius(width, height) {
+    let radius = AMBIENT_LIGHT_RADIUS;
+
+    if (this.flashlight) {
+      const biggest = Math.hypot(width, height) * MAX_VIEW_SCREEN_SHARE;
+      const share = Math.min(1, (this.flashlight.level || 1) / MAX_FLASHLIGHT_LEVEL);
+
+      radius = AMBIENT_LIGHT_RADIUS + (biggest - AMBIENT_LIGHT_RADIUS) * share;
+    }
+
+    // Remembered so other systems (monster spawning, music) can use it.
+    this.lastViewRadius = radius;
+    return radius;
+  }
+
   drawVisibility(ctx, width, height) {
     if (this.flashlight) {
       this.drawFlashlightDarkness(ctx, width, height, this.flashlight);
       return;
     }
 
-    const radius = AMBIENT_LIGHT_RADIUS;
+    const radius = this.viewRadius(width, height);
     const fade = 65;
 
     const centerX = width / 2;
@@ -698,8 +721,8 @@ export class MoonSurface {
     dctx.setTransform(ctx.getTransform());
     dctx.globalCompositeOperation = 'destination-out';
 
-    // 1. Small glow around the player (same as without a flashlight).
-    const radius = AMBIENT_LIGHT_RADIUS;
+    // 1. The circle of view around the player (bigger at higher levels).
+    const radius = this.viewRadius(width, height);
     const glow = dctx.createRadialGradient(
       centerX, centerY, radius * 0.65,
       centerX, centerY, radius + 65
@@ -913,7 +936,7 @@ export class MoonSurface {
     ctx.fillStyle = 'rgba(220,220,205,0.7)';
 
     const lines = [
-      'ARROW KEYS  MOVE',
+      'WASD / ARROW KEYS  MOVE',
       'SHIFT  RUN',
       'SPACE / CLICK  PUNCH',
       '1-5  SKILLS · K  MARTIAL ARTS',

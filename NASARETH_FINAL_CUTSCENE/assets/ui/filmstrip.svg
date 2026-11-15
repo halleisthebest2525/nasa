@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" shape-rendering="crispEdges">
+  <!-- One repeating tile of the cinematic filmstrip: charcoal base, one
+       perforation, and a few worn pixels. Tiles horizontally. -->
+  <rect width="48" height="48" fill="#121315"/>
+  <rect y="0" width="48" height="3" fill="#1b1c1f"/>
+  <rect y="45" width="48" height="3" fill="#0a0a0b"/>
+  <rect x="14" y="15" width="20" height="18" fill="#000000"/>
+  <rect x="14" y="15" width="20" height="2" fill="#050506"/>
+  <rect x="14" y="31" width="20" height="2" fill="#2a2c30"/>
+  <rect x="32" y="15" width="2" height="18" fill="#26282c"/>
+  <rect x="3" y="6" width="2" height="1" fill="#2a2b2e"/>
+  <rect x="40" y="9" width="1" height="1" fill="#2e3034"/>
+  <rect x="8" y="38" width="3" height="1" fill="#1f2023"/>
+  <rect x="42" y="36" width="1" height="2" fill="#2a2b2e"/>
+  <rect x="25" y="4" width="1" height="1" fill="#2e3034"/>
+  <rect x="1" y="27" width="1" height="1" fill="#26272a"/>
+</svg>

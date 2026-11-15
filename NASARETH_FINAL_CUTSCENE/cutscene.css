@@ -1,0 +1,132 @@
+/* PROJECT: NASARETH - final cutscene. All classes are prefixed "nso-". */
+.nso-stage {
+  --fh: clamp(26px, 6.2vh, 60px);
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  overflow: hidden;
+  background: #000;
+  color: #f2ecd8;
+  font-family: "Share Tech Mono", "VT323", ui-monospace, Consolas, "Courier New", monospace;
+  cursor: default;
+  user-select: none;
+}
+
+/* 1. Darkened copy of the current full frame fills any letterbox space,
+      so the page background is never visible. */
+.nso-backdrop { position: absolute; inset: 0; z-index: 0; background: #04060b; }
+.nso-backdrop img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; image-rendering: pixelated;
+  filter: brightness(.2) saturate(.75);
+  transition: opacity 1.2s linear;
+}
+
+/* 2-3. The 16:9 art box (size set by cutscene.js) holding full frames and panels. */
+.nso-art { position: absolute; z-index: 1; }
+.nso-layer { position: absolute; inset: 0; }
+.nso-inner { position: absolute; inset: 0; overflow: hidden; background: #04060b; }
+.nso-inner img, .nso-inner canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  display: block; object-fit: contain; image-rendering: pixelated;
+}
+.nso-full .nso-inner { transition: filter .6s ease; }
+.nso-full.nso-dim .nso-inner { filter: brightness(.42) saturate(.8); }
+
+/* 4. Comic panels: printed-gutter borders, slight diagonal cut, hard shadow. */
+.nso-panel { filter: drop-shadow(9px 11px 0 rgba(0, 0, 0, .72)); }
+.nso-panel .nso-frame {
+  position: absolute; inset: 0;
+  background: #050505;
+  clip-path: polygon(2.4% 0, 100% 0, 97.6% 100%, 0 100%);
+}
+.nso-panel .nso-frame::after {
+  content: ""; position: absolute; inset: 3px;
+  background: #d9dde3;
+  clip-path: polygon(2.4% 0, 100% 0, 97.6% 100%, 0 100%);
+}
+.nso-panel .nso-inner {
+  inset: 6px;
+  z-index: 1;
+  clip-path: polygon(2.4% 0, 100% 0, 97.6% 100%, 0 100%);
+}
+
+/* 5. Impact flash (above artwork, below captions). */
+.nso-flash { position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: 0; }
+
+/* 6. Captions: always above every image, panel and effect; never clipped. */
+.nso-captions { position: absolute; inset: 0; z-index: 5; pointer-events: none; overflow: visible; }
+.nso-cap {
+  position: absolute;
+  max-width: min(78vw, 980px);
+  padding: .72em 1.15em .78em;
+  background: rgba(2, 3, 6, .94);
+  border: 2px solid #e9e2cf;
+  box-shadow: 0 0 0 3px #000, 6px 7px 0 rgba(0, 0, 0, .7);
+  color: #f4eedb;
+  font-size: clamp(14px, 1.75vw, 25px);
+  line-height: 1.38;
+  letter-spacing: .03em;
+  opacity: 0;
+  transition: opacity .35s linear;
+  -webkit-font-smoothing: none;
+}
+.nso-cap.nso-show { opacity: 1; }
+.nso-cap .nso-ghost { visibility: hidden; }
+.nso-cap.nso-system {
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  font-size: clamp(13px, 1.45vw, 21px);
+  padding-left: 1.6em;
+}
+.nso-cap.nso-system::before {
+  content: ""; position: absolute; left: .55em; top: .55em; bottom: .55em; width: .35em;
+  background: var(--tone, #7fd3f5);
+}
+.nso-cap.nso-system { border-color: var(--tone, #7fd3f5); color: var(--tone-text, #c8f0ff); }
+.nso-cap .nso-speaker {
+  display: block; margin-bottom: .3em;
+  font-size: .62em; letter-spacing: .3em; color: #f6bd62;
+}
+
+.nso-title {
+  position: absolute; left: 0; right: 0;
+  text-align: center; opacity: 0; transition: opacity 2.4s ease;
+  color: #f4eedb; text-shadow: 0 0 0 transparent;
+}
+.nso-title.nso-show { opacity: 1; }
+.nso-title .nso-t1 { font-size: clamp(20px, 3vw, 44px); letter-spacing: .42em; padding-left: .42em; }
+.nso-title .nso-t2 {
+  margin-top: .7em; font-size: clamp(11px, 1.15vw, 17px); letter-spacing: .6em; padding-left: .6em; color: #c9cfd8;
+}
+
+/* 7. Filmstrip borders (separate from the art). */
+.nso-film {
+  position: absolute; left: 0; right: 0; height: var(--fh); z-index: 6;
+  background-color: #111214;
+  background-repeat: repeat-x;
+  background-size: auto 100%;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px #000;
+}
+.nso-film.nso-top { top: 0; }
+.nso-film.nso-bottom { bottom: 0; }
+
+/* 8. Controls. */
+.nso-skip {
+  position: absolute; z-index: 7;
+  right: 18px; bottom: calc(var(--fh) / 2); transform: translateY(50%);
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, .78);
+  color: #9aa3b2;
+  border: 1px solid #3f4857;
+  font: 11px "Share Tech Mono", ui-monospace, Consolas, monospace;
+  letter-spacing: .2em;
+  cursor: pointer;
+  opacity: .7;
+}
+.nso-skip:hover, .nso-skip:focus-visible { opacity: 1; color: #eef1f5; border-color: #9aa3b2; outline: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nso-cap, .nso-title, .nso-backdrop img, .nso-full .nso-inner { transition-duration: .01s; }
+}

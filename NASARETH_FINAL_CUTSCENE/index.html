@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PROJECT: NASARETH · Final Cutscene</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #04060b; color: #c9cfd8;
+      font-family: "Share Tech Mono", ui-monospace, Consolas, monospace; }
+    .launch { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; }
+    .launch h1 { font-weight: normal; letter-spacing: .4em; font-size: clamp(18px, 3vw, 34px); margin: 0 0 .4em; color: #eef1f5; }
+    .launch p { letter-spacing: .3em; font-size: 12px; color: #828c9c; margin: 0 0 2em; }
+    .launch button { background: #0b111f; color: #eef1f5; border: 1px solid #5b6576; padding: 12px 22px;
+      font: 13px "Share Tech Mono", ui-monospace, Consolas, monospace; letter-spacing: .25em; cursor: pointer; }
+    .launch button:hover { border-color: #c8f0ff; }
+  </style>
+</head>
+<body>
+  <!-- Standalone player. The game itself starts the same cutscene from the
+       Earth shipyard (see INTEGRATION_GUIDE.md). A click is needed first so
+       the browser allows sound. -->
+  <div class="launch" id="launch">
+    <div>
+      <h1>PROJECT: NASARETH</h1>
+      <p>FINAL CUTSCENE · 23 FRAMES · ABOUT 2 MINUTES</p>
+      <button type="button" id="play">PLAY</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { playOutro, preloadOutro } from './cutscene.js';
+
+    const launch = document.querySelector('#launch');
+    const button = document.querySelector('#play');
+    preloadOutro();
+
+    button.addEventListener('click', async () => {
+      launch.style.display = 'none';
+      await playOutro();
+      button.textContent = 'REPLAY';
+      launch.style.display = 'grid';
+      button.focus();
+    });
+  </script>
+</body>
+</html>

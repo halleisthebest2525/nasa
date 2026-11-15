@@ -53,7 +53,7 @@ export function createUmbrielMonsters(assets, callbacks = {}) {
   const artReady = [[REAVER_ANIMATIONS, 'umbriel_reaver'], [NOCTURNUS_ANIMATIONS, 'umbriel_boss']]
     .every(([animations, prefix]) => Object.entries(animations).every(([name, [count]]) =>
       Array.from({ length: count }, (_, i) => assets[`${prefix}_${name}_${i + 1}`]).every(Boolean)));
-  if (!artReady) console.warn('Umbriel encounter disabled: original monster animation frames are not loaded.');
+  if (!artReady) console.warn('Umbriel encounter disabled: monster animation frames are not loaded.');
   const random = callbacks.random || Math.random;
   let clock = 0, reavers = [], respawns = [], bossDefeated = false;
   let boss, rings = [], shards = [], fields = [], particles = [], echoes = [];
@@ -431,7 +431,7 @@ export function createUmbrielMonsters(assets, callbacks = {}) {
     const loop = ['idle', 'move', 'run'].includes(animation);
     const frame = loop ? Math.floor(age / seconds) % frames : Math.min(frames - 1, Math.floor(age / seconds));
     const image = assets[`${prefix}_${animation}_${frame + 1}`];
-    if (!image) return; // Missing supplied art is never replaced with another monster.
+    if (!image) return;
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.globalAlpha *= alpha;
     ctx.translate(Math.round(x), Math.round(y)); ctx.rotate(angle);
     if (silhouette) ctx.filter = 'grayscale(1) brightness(0.15)';

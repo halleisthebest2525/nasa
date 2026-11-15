@@ -1,21 +1,14 @@
-# Umbriel source artwork
+# Umbriel artwork
 
-The original concept sheet shown in the request must be saved here as
-`umbriel_sheet.png`. Register it in the root `assets.txt`:
+No external sprite sheet is required. `src/umbrielPixelArt.js` creates and caches
+22 Void Reaver frames and 50 Nocturnus frames during asset loading. The sprites
+use a monochrome 64-pixel grid, enlarged with nearest-neighbor sampling onto
+fixed 192-pixel canvases. The enemy renderer uses those cached canvases.
 
-```text
-umbriel_sheet=./img/enemies/umbriel/umbriel_sheet.png
-```
+Void Reavers have segmented serpentine armor, claws and white eyes. Nocturnus
+has an obsidian core, floating crystalline plates and white energy rings.
+Movement, attacks, hurt, transitions and death have distinct animation poses.
 
-`src/umbrielSprites.js` extracts 22 Void Reaver frames and 50 Nocturnus frames
-into separate, monochrome, transparent canvases. It excludes the concept
-illustrations and headings. Every frame uses a fixed canvas and source scale.
-The source image is never drawn directly by the enemy renderer.
-
-The extraction rectangles are provisionally mapped from the chat preview.
-They must be checked against the actual image before enabling the encounter.
-If the layout differs, update `UMBRIEL_FRAME_ROWS` rather than rescaling
-individual character frames.
-
-Until all 72 frames are present, the encounter is disabled to prevent invisible
-enemies from damaging the player. No replacement character artwork is used.
+An optional `umbriel_sheet.png` can replace the generated artwork by registering
+`umbriel_sheet=./img/enemies/umbriel/umbriel_sheet.png` in `assets.txt`.
+The extraction layout in `src/umbrielSprites.js` must match that sheet.

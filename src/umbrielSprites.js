@@ -1,4 +1,6 @@
-// Regions in the supplied 1774 x 887 concept sheet, excluding headings,
+import { generateUmbrielFrames } from './umbrielPixelArt.js';
+
+// Optional regions in the 1774 x 887 concept sheet, excluding headings,
 // dividers and the two large illustration panels on the left.
 // Keep frames in reading order. The sheet itself is never rendered as a sprite.
 export const UMBRIEL_FRAME_ROWS = [
@@ -46,7 +48,7 @@ function transparentBackground(ctx, width, height) {
 
 export function prepareUmbrielFrames(assets) {
   const sheet = assets.umbriel_sheet;
-  if (!sheet?.naturalWidth) return 0;
+  if (!sheet?.naturalWidth) return generateUmbrielFrames(assets, UMBRIEL_FRAME_ROWS);
   const sx = sheet.naturalWidth / 1774, sy = sheet.naturalHeight / 887;
   let count = 0;
   for (const [kind, animation, frames, left, top, right, bottom] of UMBRIEL_FRAME_ROWS) {

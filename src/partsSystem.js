@@ -1,4 +1,6 @@
 
+import { PLANETS } from './planets.js';
+
 const SURFACE_RADIUS = 4800;
 const PICKUP_DISTANCE = 55;
 
@@ -244,8 +246,7 @@ const PARTS_PER_MOON = 6;
 // Modules lying on each planet (Mars has a few more than the Moon).
 // Collecting all of them spawns the chest with the next star map:
 // Moon 8 -> Mars, Mars 10 -> Europa, Europa 12 -> Titan, Titan 14 -> Uranus.
-const PARTS_PER_PLANET = { moon: 8, mars: 10, europa: 12, titan: 14, umbriel: 16 };
-const partsCount = planet => PARTS_PER_PLANET[planet] || PARTS_PER_MOON;
+const partsCount = planet => PLANETS[planet]?.modules || PARTS_PER_MOON;
 
 // Creates a fresh batch of modules scattered over the Moon.
 function createParts(planet = 'moon') {
@@ -268,6 +269,19 @@ function createParts(planet = 'moon') {
   }
 
   return parts;
+}
+
+// Update older Umbriel saves without rerolling their loot or removing anything
+// already earned from the inventory. Boss rewards remain separate bonus drops.
+export function normalizeUmbrielItems(items) {
+  if (!Array.isArray(items)) return createParts('umbriel');
+  const normal = items.filter(part => !part.reward);
+  const count = partsCount('umbriel');
+  if (normal.length === count) return items;
+  const keep = new Set([...normal.filter(part => part.collected),
+    ...normal.filter(part => !part.collected)].slice(0, count));
+  return items.filter(part => part.reward || keep.has(part))
+    .concat(normal.length < count ? createParts('umbriel').slice(0, count - normal.length) : []);
 }
 
 function createInitialState() {
@@ -407,6 +421,10 @@ export function attachPartsSystem(moonSurface) {
   // Older saves could have too many modules on the Moon, or mythic /
   // legendary ones. If so, replace them with a normal batch.
   function fixMoonItems(planet = 'moon') {
+    if (planet === 'umbriel') {
+      parts.items = normalizeUmbrielItems(parts.items);
+      return;
+    }
     // Rarities that can drop on this planet (odds above 0).
     const odds = PLANET_RARITY_ODDS[planet] || PLANET_RARITY_ODDS.moon;
     const MOON_RARITIES = Object.keys(odds).filter(rarity => odds[rarity] > 0);

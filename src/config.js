@@ -3,11 +3,11 @@ export const CONFIG = {
   // Europa and Titan. Random asteroids stay in the inner ±22000.
   worldSize: 100000,
   starCount: 700,
-  // Same asteroid density as before (140 in the old 30000 space).
-  // Random asteroids in the inner system (Earth, Moon, Mars).
-  asteroidCount: 520,
-  // Random asteroids past the Asteroid Belt (around Europa and Titan).
-  outerAsteroidCount: 260,
+  // More frequent encounters throughout the inner system, retaining the
+  // existing clear areas around Earth and the planetary landing zones.
+  asteroidCount: 1800,
+  // Denser loose asteroids on the Europa–Titan–Umbriel travel routes.
+  outerAsteroidCount: 1000,
   ship: {
     acceleration: 170,
     reverse: 90,

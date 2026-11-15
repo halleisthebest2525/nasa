@@ -7,7 +7,7 @@ import { updateHud } from './hud.js';
 import { MoonSurface } from './moonSurface.js';
 import { loadAssets } from './assets.js';
 import { Survival } from './survival.js';
-import { attachPartsSystem } from './partsSystem.js';
+import { attachPartsSystem, normalizeUmbrielItems } from './partsSystem.js';
 import { readSaves, writeSave, removeSave, applySnapshot } from './saveSystem.js';
 import { isTypingTarget, clearInput } from './input.js';
 import { createWarpTravel } from './warpTravel.js';
@@ -232,7 +232,9 @@ const umbrielMonsters = createUmbrielMonsters(assets, {
   },
   onCollapse() { showMoonMessage('ECLIPSE COLLAPSE — GET BEYOND THE WHITE DANGER RING'); }
 });
-partsSystem.setLockedRarities('umbriel', ['legendary']);
+// Surface salvage follows the planet log's full 2/8/25/45/20 rarity chart.
+// The guaranteed boss reward itself is still awarded only after its death.
+partsSystem.setLockedRarities('umbriel', []);
 
 // Which enemy group lives on each planet (see planets.js "enemies").
 const ENEMY_GROUPS = { moon: crawlers, mars: marsMonsters, europa: europaMonsters, titan: titanMonsters, umbriel: umbrielMonsters };
@@ -396,6 +398,7 @@ function switchPlanet(id) {
     else moonSurface.scraps.respawn(PLANETS[id]);
 
     partsSystem.getParts().items = stored.partItems;
+    if (id === 'umbriel') partsSystem.fixMoonItems(id);
     delete planetStates[id];
   } else {
     // First visit: fresh scrap and modules with this planet's odds.
@@ -2872,6 +2875,9 @@ function loadPendingSave() {
     planetStates = save.planetStates && typeof save.planetStates === 'object'
       ? save.planetStates
       : {};
+    if (planetStates.umbriel) {
+      planetStates.umbriel.partItems = normalizeUmbrielItems(planetStates.umbriel.partItems);
+    }
     moonSurface.setPlanet(PLANETS[landedPlanet]);
     applyPlanetFeatures();
 
@@ -2902,7 +2908,7 @@ function loadPendingSave() {
     titanMonsters.load(save.moon?.titanBoss);
     partsSystem.setLockedRarities('titan', titanMonsters.isBossDefeated() ? [] : ['legendary']);
     umbrielMonsters.load(save.moon?.umbrielBoss);
-    partsSystem.setLockedRarities('umbriel', umbrielMonsters.isBossDefeated() ? [] : ['legendary']);
+    partsSystem.setLockedRarities('umbriel', []);
 
     if (save.moon && PLANETS[landedPlanet].chestQuest) {
       chestQuest.checkModules();

@@ -239,16 +239,18 @@ async function startGame(snapshot = null) {
     launchButton.textContent = 'INITIALIZING';
   }
 
-  if (snapshot) {
-    localStorage.setItem(
-      'nasareth.pending-load',
-      JSON.stringify(snapshot)
-    );
-  } else {
-    localStorage.removeItem('nasareth.pending-load');
-  }
-
   try {
+    // Blocked storage (private mode, embedded page) must not stop the launch.
+    try {
+      if (snapshot) {
+        localStorage.setItem('nasareth.pending-load', JSON.stringify(snapshot));
+      } else {
+        localStorage.removeItem('nasareth.pending-load');
+      }
+    } catch (error) {
+      console.warn('Could not store the pending load:', error);
+    }
+
     // Story belongs to a new expedition, never app startup or save loading.
     if (!snapshot) await playPrologue();
     prologuePlaying = false;

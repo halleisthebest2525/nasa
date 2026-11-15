@@ -811,11 +811,6 @@ export function createMartialArts(game) {
       busy = 0;
     },
 
-    // TESTING (admin panel).
-    unlockAll() {
-      for (const skill of SKILLS) unlocked.add(skill.id);
-    },
-
     save: () => ({ unlocked: [...unlocked] }),
 
     load(data) {

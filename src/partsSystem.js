@@ -655,17 +655,6 @@ export function attachPartsSystem(moonSurface) {
     respawn,
     fixMoonItems,
 
-    // ADMIN MODE (temporary): collect every module left on this planet at once.
-    collectAll() {
-      const left = parts.items.filter(part => !part.collected);
-      left.forEach(collectPart);
-      if (left.length) {
-        parts.pickupMessage = `ADMIN: ${left.length} MODULES COLLECTED · INSTALL AT EARTH`;
-        parts.pickupTimer = 3;
-      }
-      return left.length;
-    },
-
     // For the planet log.
     getRarityOdds: planet => (PLANET_RARITY_ODDS[planet] ? { ...PLANET_RARITY_ODDS[planet] } : null),
     getLockedRarities: planet => [...(lockedRarities[planet] || [])],

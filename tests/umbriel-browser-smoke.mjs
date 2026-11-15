@@ -1,7 +1,7 @@
 // Optional real-browser smoke test for Umbriel's monsters:
 //   node tests/umbriel-browser-smoke.mjs [screenshot-folder]
 // Uses an installed Chrome and the built-in DevTools protocol; no dependencies.
-// Flies to Umbriel with the admin panel, lands, teleports to Nocturnus and
+// Loads a test save beside Nocturnus and
 // checks that the fight runs (phase 1, then the phase 3 Eclipse) without
 // runtime errors. Screenshots are written when a folder is given.
 import http from 'node:http';
@@ -23,6 +23,9 @@ const server = http.createServer((req, res) => {
   fs.readFile(file, (error, data) => {
     if (error) { res.writeHead(404).end(); return; }
     res.setHeader('Content-Type', ({ '.js': 'text/javascript', '.html': 'text/html', '.css': 'text/css', '.png': 'image/png', '.mp3': 'audio/mpeg' })[path.extname(file)] || 'application/octet-stream');
+    if (file === path.join(root, 'src', 'main.js')) {
+      data = Buffer.concat([data, Buffer.from('\nwindow.__umbrielTest = { monsters: umbrielMonsters };\n')]);
+    }
     res.end(data);
   });
 });
@@ -74,13 +77,6 @@ try {
     const image = await send('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(path.join(shots, name + '.png'), Buffer.from(image.data, 'base64'));
   };
-  const adminClick = label => evaluate(`(() => {
-    const button = [...document.querySelectorAll('button')].find(b => b.textContent.startsWith(${JSON.stringify(label)}));
-    if (!button) return 'NO BUTTON ' + ${JSON.stringify(label)};
-    button.click();
-    return button.parentElement.querySelector('div:last-child')?.textContent || 'clicked';
-  })()`);
-
   await send('Runtime.enable');
   await send('Page.enable');
   await send('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/' });
@@ -101,37 +97,26 @@ try {
   assert.equal(missing.count, 73, 'assets.txt should list 73 Umbriel frames');
   assert.deepEqual(missing.bad, []);
 
-  // A flying save with every star map, straight into space.
+  // Test-only save setup; the shipped game has no cheat controls.
   await evaluate(`(async () => {
-    localStorage.setItem('nasareth.pending-load', JSON.stringify({launchComplete:true,gameMode:'driving',gameMinutes:600,ship:{x:0,y:0,angle:-Math.PI/2},survival:{health:100,stamina:100,oxygen:100,shipOxygen:100,fuel:100,medkits:2},moon:{scraps:{credits:321},parts:{inventory:[],installed:{engine:'base',fuelTank:'base',energyModule:'base',hullCargo:'base',computer:'base'}},progress:{chestDetector:true,opened:{moon:true,mars:true,europa:true,titan:true},maps:{mars:true,europa:true,titan:true,umbriel:true}}}}));
+    localStorage.setItem('nasareth.pending-load', JSON.stringify({launchComplete:true,gameMode:'moon',landedPlanet:'umbriel',landedOnMoon:true,gameMinutes:600,ship:{x:0,y:0,angle:-Math.PI/2},survival:{health:10000,stamina:100,oxygen:100,shipOxygen:100,fuel:100,medkits:2},moon:{x:2900,y:2900,scraps:{credits:321},parts:{inventory:[],installed:{engine:'base',fuelTank:'base',energyModule:'base',hullCargo:'base',computer:'base'}},progress:{chestDetector:true,opened:{moon:true,mars:true,europa:true,titan:true},maps:{mars:true,europa:true,titan:true,umbriel:true}}}}));
     await import('./src/main.js');
     document.querySelector('#main-menu').style.display='none';
     document.querySelector('#game').classList.add('game-active');
-    window.__NASA_ADMIN__.skipGauges = true;
-    window.__NASA_ADMIN__.god = true;
     return true;
   })()`);
   await until('!!window.NasarethGame');
-
-  console.log('FLY:', await adminClick('FLY TO UMBRIEL'));
-  await wait(300);
-  await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyE',key:'e'}))`);
-
-  // Landing is done when the boss teleport works.
-  const landed = await until(`(() => {
-    const button = [...document.querySelectorAll('button')].find(b => b.textContent.startsWith('GO TO BOSS'));
-    button.click();
-    const status = button.parentElement.querySelector('div:last-child')?.textContent || '';
-    return status.includes('TELEPORTED') ? status : '';
-  })()`, 20000, 500);
-  console.log('LAND:', landed);
+  assert.equal(await evaluate('typeof window.__NASA_ADMIN__'), 'undefined');
+  assert.deepEqual(await evaluate('Object.keys(window.NasarethGame).filter(key => key.startsWith("debug"))'), []);
+  await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backquote', key: '\u0060' }))`);
+  assert.equal(await evaluate('[...document.querySelectorAll("button")].some(button => /ADMIN|GOD MODE/.test(button.textContent))'), false);
 
   // Phase 1: the boss wakes up and fights.
   const seenStates = new Set();
   const deadline = Date.now() + 9000;
   let info;
   while (Date.now() < deadline) {
-    info = await evaluate('NasarethGame.debugUmbriel()');
+    info = await evaluate('window.__umbrielTest.monsters.list()');
     seenStates.add(info.boss.state);
     if (info.boss.state === 'pulse' || info.boss.state === 'shard') { await shot('umbriel-phase1-attack'); }
     await wait(150);
@@ -143,17 +128,21 @@ try {
   assert.ok(seenStates.has('pulse') || seenStates.has('shard'), 'no phase 1 ability was seen');
 
   // Phase 3: the Eclipse Collapse.
-  await evaluate('NasarethGame.debugUmbrielBossHp(30)');
-  const eclipse = await until(`(() => { const b = NasarethGame.debugUmbriel().boss; return b && b.state === 'eclipseCharge' ? b : null; })()`, 25000, 100);
+  await evaluate(`(() => {
+    const monsters = window.__umbrielTest.monsters;
+    const b = monsters.list().boss;
+    monsters.strike({ x: b.x - 100, y: b.y, angle: 0, range: 68, arc: 0.95, damage: b.hp - 29 });
+  })()`);
+  const eclipse = await until(`(() => { const b = window.__umbrielTest.monsters.list().boss; return b && b.state === 'eclipseCharge' ? b : null; })()`, 25000, 100);
   await wait(1500);
   await shot('umbriel-eclipse');
   console.log('ECLIPSE:', JSON.stringify(eclipse));
-  const recovered = await until(`(() => { const b = NasarethGame.debugUmbriel().boss; return b && b.state === 'eclipseRecover' ? b : null; })()`, 10000, 100);
+  const recovered = await until(`(() => { const b = window.__umbrielTest.monsters.list().boss; return b && b.state === 'eclipseRecover' ? b : null; })()`, 10000, 100);
   await shot('umbriel-exposed');
   console.log('EXPOSED:', JSON.stringify(recovered));
 
   assert.deepEqual(errors.map(e => e.text + ' ' + (e.exception?.description || '')), []);
-  console.log('PASS: Umbriel monsters load, Nocturnus fights through phase 1 and the Eclipse without errors.');
+  console.log('PASS: no admin global, panel or console debug hooks; Nocturnus fights through phase 1 and the Eclipse without errors.');
 } finally {
   socket?.close();
   browser.kill();

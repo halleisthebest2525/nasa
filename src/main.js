@@ -25,7 +25,6 @@ import { createUmbrielMonsters } from './umbrielMonsters.js';
 import { createEarthBase } from './earthBase.js';
 import { playOutro } from '../NASARETH_FINAL_CUTSCENE/cutscene.js';
 import { createPlanetLog } from './planetLog.js';
-import { adminFlags, createAdminMode } from './adminMode.js'; // TEMPORARY
 import { createMusic } from './music.js';
 import { createMartialArts } from './martialArts.js';
 import { createSkillMenu } from './skillMenu.js';
@@ -3029,139 +3028,10 @@ window.NasarethGame = {
     previous = 0;
   },
 
-  // Read-only debug info about the Moon's crawlers (for testers).
-  // Read-only debug info about the Mars monsters (for testers).
-  debugMars() {
-    return marsMonsters.list();
-  },
-
-  debugEuropa() {
-    return europaMonsters.list();
-  },
-
-  debugTitan() {
-    return titanMonsters.list();
-  },
-
-  // TESTING: set the Titan boss's health (to check its phases).
-  debugTitanBossHp(hp) {
-    titanMonsters.debugSetBossHp(hp);
-  },
-
-  debugUmbriel() {
-    return umbrielMonsters.list();
-  },
-
-  // TESTING: set the Umbriel boss's health (to check its phases).
-  debugUmbrielBossHp(hp) {
-    umbrielMonsters.debugSetBossHp(hp);
-  },
-
-  // Martial arts + scrap info (for testers).
-  debugSkills() {
-    return {
-      scraps: moonSurface.scraps.credits,
-      scrapsOnPlanet: moonSurface.scraps.items.length,
-      skills: Object.fromEntries(
-        ['punch', 'flyingKick', 'energyWave', 'advancedWave', 'finisher']
-          .map(id => [id, `${martialArts.status(id)} cd ${martialArts.cooldownOf(id).toFixed(1)}`])
-      ),
-      player: { x: Math.round(moonSurface.x), y: Math.round(moonSurface.y) }
-    };
-  },
-
-  // Move the player on the surface (for testers).
-  debugGoto(x, y) {
-    moonSurface.x = x;
-    moonSurface.y = y;
-  },
-
-  debugCrawlers() {
-    return {
-      alive: crawlers.list(),
-      respawnsIn: crawlers.pendingRespawns(),
-      player: { x: Math.round(moonSurface.x), y: Math.round(moonSurface.y) }
-    };
-  },
-
   isPaused() {
     return paused;
   }
 };
-
-// ADMIN MODE (temporary) - remove before release.
-createAdminMode({
-  addCredits(amount) {
-    moonSurface.scraps.credits = (moonSurface.scraps.credits ?? 0) + amount;
-    return `SCRAPS: ${moonSurface.scraps.credits}`;
-  },
-  restoreAll() {
-    hull = hullMax;
-    updateHull();
-    Object.assign(survival, { health: 100, fuel: survival.maxFuel, oxygen: 100, shipOxygen: 100, stamina: 100, staminaExhausted: false });
-  },
-  giveAllMaps() {
-    const saved = chestQuest.save();
-    saved.chestDetector = true;
-    saved.maps = { ...saved.maps, mars: true, europa: true, titan: true, umbriel: true };
-    chestQuest.load(saved);
-    return 'MARS + EUROPA + TITAN MAPS GIVEN';
-  },
-  maxGear() {
-    survival.flashlightLevel = FLASHLIGHT_PRICES.length;
-    survival.flashlightOn = true;
-    applyFlashlight();
-    survival.medkits = medkitMax();
-  },
-  unlockSkills() {
-    martialArts.unlockAll();
-    return 'ALL MARTIAL ARTS UNLOCKED (KEYS 1-5)';
-  },
-  gotoNextModule() {
-    if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
-    const part = partsSystem.getParts().items.find(item => !item.collected);
-    if (!part) return 'NO MODULES LEFT';
-    moonSurface.x = part.x;
-    moonSurface.y = part.y + 20;
-    return 'TELEPORTED (module picks up automatically)';
-  },
-  collectAllModules() {
-    if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
-    const count = partsSystem.collectAll();
-    return count ? `COLLECTED ${count} MODULES` : 'NO MODULES LEFT';
-  },
-  gotoBoss() {
-    if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
-    const lair = { mars: [-2800, -2600], europa: [2900, -2700], titan: [-3000, 2800], umbriel: [3200, 2900] }[landedPlanet];
-    if (!lair) return 'NO BOSS ON THIS PLANET';
-    moonSurface.x = lair[0];
-    moonSurface.y = lair[1] + 480;
-    return 'TELEPORTED NEAR THE BOSS LAIR';
-  },
-  gotoChest() {
-    if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
-    const chest = chestQuest.getState().chests[landedPlanet];
-    if (!chest) return 'NO CHEST YET (collect all modules first)';
-    moonSurface.x = chest.x;
-    moonSurface.y = chest.y;
-    return 'TELEPORTED TO CHEST';
-  },
-  flyTo(id) {
-    if (gameMode !== 'driving') return 'MUST BE FLYING IN SPACE (leave the ship/planet first)';
-    // The belt: just inside its inner edge, on the way from Mars to Europa.
-    const body = id === 'belt'
-      ? { x: -0.747 * (BELT.inner - 400), y: -0.664 * (BELT.inner - 400), radius: -60 }
-      : world[id];
-    ship.x = body.x;
-    ship.y = body.y - body.radius - 60;
-    ship.vx = 0;
-    ship.vy = 0;
-    return `AT ${id.toUpperCase()} - PRESS E TO LAND`;
-  },
-  setTime(minutes) {
-    gameMinutes = minutes;
-  }
-});
 
 window.dispatchEvent(new CustomEvent('nasareth:game-ready'));
 
@@ -3499,22 +3369,6 @@ function frame(time) {
     warpAvailable()
   );
 
-  // ADMIN MODE (temporary): god mode keeps everything full.
-  if (adminFlags.god && !gameOver && !travelingThisFrame) {
-    hull = hullMax;
-    survival.health = 100;
-    survival.fuel = survival.maxFuel;
-    survival.oxygen = 100;
-    survival.shipOxygen = 100;
-    survival.stamina = 100;
-    survival.staminaExhausted = false;
-  }
-
-  // ADMIN MODE (temporary): auto-collect every module on the planet.
-  if (adminFlags.autoCollect && gameMode === 'moon' && !gameOver) {
-    partsSystem.collectAll();
-  }
-
   // The world is frozen while the launch / landing gauge is on screen.
   if (!travelingThisFrame && !gameOver && !paused && !isGaugeChallengeActive() && !earthBase.isOpen() && !planetLog.isOpen() && !skillMenu.isOpen() && !warpMenu.isOpen() && !howToPlay.isOpen()) {
     if (sleeping) {
@@ -3588,11 +3442,7 @@ function frame(time) {
           ship.update(
             dt,
             survival.fuel > 0,
-            adminFlags.fast
-              ? { ...moduleStats,
-                  accelerationMultiplier: (moduleStats.accelerationMultiplier || 1) * 3,
-                  maxSpeedMultiplier: (moduleStats.maxSpeedMultiplier || 1) * 3 }
-              : moduleStats
+            moduleStats
           );
 
           checkCollisions();

@@ -1488,11 +1488,5 @@ export function createUmbrielMonsters(assets, callbacks = {}) {
       effects: { rings: rings.length, shards: shards.length, wells: wells.length, waves: waves.length }
     }),
 
-    // TESTING: set the boss's health (admin / automated tests).
-    debugSetBossHp(hp) {
-      if (!boss) return;
-      boss.hp = hp;
-      boss.phase = bossPhase(boss);
-    }
   };
 }

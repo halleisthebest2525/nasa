@@ -736,7 +736,7 @@ export function createTitanMonsters(assets, callbacks = {}) {
       const backX = -(px - lastPlayer.x) * CRAWLER.vapor.slow;
       const backY = -(py - lastPlayer.y) * CRAWLER.vapor.slow;
 
-      // Ignore teleports (entering the ship, admin buttons, flying kick).
+      // Ignore teleports (entering the ship, flying kick).
       if (Math.hypot(backX, backY) < 4) {
         player.push(backX, backY);
         px += backX;
@@ -1309,11 +1309,5 @@ export function createTitanMonsters(assets, callbacks = {}) {
       effects: { gasClouds: gasClouds.length, vaporClouds: vaporClouds.length, shockwaves: shockwaves.length }
     }),
 
-    // TESTING: set the boss's health (admin / automated tests).
-    debugSetBossHp(hp) {
-      if (!boss) return;
-      boss.hp = hp;
-      boss.phase = bossPhase(boss);
-    }
   };
 }

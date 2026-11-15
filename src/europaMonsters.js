@@ -630,7 +630,7 @@ export function createEuropaMonsters(assets, callbacks = {}) {
       const backX = -(px - lastPlayer.x) * ZERO.slow;
       const backY = -(py - lastPlayer.y) * ZERO.slow;
 
-      // Ignore teleports (entering the ship, admin buttons).
+      // Ignore teleports (entering the ship).
       if (Math.hypot(backX, backY) < 12) {
         player.push(backX, backY);
         px += backX;

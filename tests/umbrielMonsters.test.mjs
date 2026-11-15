@@ -78,7 +78,7 @@ test('phase transitions make it untouchable, summon reavers and unlock new abili
   const before = monsters.list().stalkers.length;
 
   // Just above the 70% mark, then one more hit crosses it.
-  monsters.debugSetBossHp(BOSS_HP * 0.7 + 1);
+  hitBoss(monsters, player, monsters.list().boss.hp - (BOSS_HP * 0.7 + 1));
   assert.equal(monsters.list().boss.phase, 1);
   const hit = hitBoss(monsters, player, 2);
   assert.equal(hit.length, 1);
@@ -107,8 +107,7 @@ test('phase transitions make it untouchable, summon reavers and unlock new abili
   assert.ok(seen.has('wellCast') && seen.has('effect:wells'), `no gravity well in phase 2: ${[...seen].join(', ')}`);
 
   // Phase 3 and the Eclipse Collapse.
-  monsters.debugSetBossHp(BOSS_HP * 0.35 + 1);
-  hitBoss(monsters, player, 2);
+  hitBoss(monsters, player, monsters.list().boss.hp - (BOSS_HP * 0.35 - 1));
   assert.deepEqual(phases, [2, 3]);
   run(monsters, player, 3);
   assert.equal(monsters.list().stalkers.length, before + 5);
@@ -136,8 +135,7 @@ test('standing inside the eclipse (outside the corona) hurts and exposes the cor
   const monsters = createUmbrielMonsters(ASSETS);
   const player = makePlayer(LAIR.x - 300, LAIR.y);
   run(monsters, player, 0.5);
-  monsters.debugSetBossHp(BOSS_HP * 0.35 + 1);
-  hitBoss(monsters, player, 2);
+  hitBoss(monsters, player, monsters.list().boss.hp - (BOSS_HP * 0.35 - 1));
   run(monsters, player, 3);
 
   let swallowed = false;

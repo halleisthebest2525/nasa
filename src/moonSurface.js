@@ -194,7 +194,6 @@ export class MoonSurface {
       let multiplier = 1;
       if (exhausted) multiplier = EXHAUSTED_MULTIPLIER;
       else if (running) multiplier = RUN_MULTIPLIER;
-      if (window.__NASA_ADMIN__?.fast) multiplier *= 3; // ADMIN MODE (temporary)
 
       const speed = WALK_SPEED * multiplier;
 

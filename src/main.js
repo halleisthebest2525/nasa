@@ -21,6 +21,7 @@ import { PLANETS } from './planets.js';
 import { createMarsMonsters } from './marsMonsters.js';
 import { createEuropaMonsters } from './europaMonsters.js';
 import { createTitanMonsters } from './titanMonsters.js';
+import { createUmbrielMonsters } from './umbrielMonsters.js';
 import { createEarthBase } from './earthBase.js';
 import { createPlanetLog } from './planetLog.js';
 import { adminFlags, createAdminMode } from './adminMode.js'; // TEMPORARY
@@ -72,7 +73,7 @@ const chestQuest = createChestQuest({
   getPlanet: () => landedPlanet,
   // The chest lies next to the boss's lair on worlds that have a boss.
   getChestSpot(planet) {
-    const lair = { mars: marsMonsters.lair, europa: europaMonsters.lair, titan: titanMonsters.lair }[planet];
+    const lair = { mars: marsMonsters.lair, europa: europaMonsters.lair, titan: titanMonsters.lair, umbriel: umbrielMonsters.lair }[planet];
     return lair ? { x: lair.x + 210, y: lair.y + 190 } : null;
   },
   showTransmission: (text, color) => showTransmission(text, color),
@@ -219,11 +220,34 @@ const titanMonsters = createTitanMonsters(assets, {
 // Legendary modules only drop on Titan after the boss is defeated.
 partsSystem.setLockedRarities('titan', ['legendary']);
 
+// UMBRIEL: Void Reavers and Nocturnus, the Void Sovereign (final boss).
+const umbrielMonsters = createUmbrielMonsters(assets, {
+  onBossDefeated(x, y) {
+    // The final prize: a guaranteed LEGENDARY module where it fell.
+    partsSystem.addRewardPart(x, y, 'legendary');
+
+    showTransmission(
+      'NOCTURNUS DESTROYED\n' +
+      'THE VOID SOVEREIGN IS NO MORE\n' +
+      'A LEGENDARY MODULE LIES WHERE IT FELL',
+      '#ffffff'
+    );
+  },
+  onBossPhase(phase) {
+    showMoonMessage(phase === 2
+      ? 'PHASE 2 · SHATTERED CROWN · WELLS OPEN UNDER YOU · SHARDS CURVE'
+      : 'PHASE 3 · ECLIPSE · WHEN IT GOES DARK, STAND IN THE BRIGHT RING');
+  },
+  onEclipse() {
+    showMoonMessage('ECLIPSE COLLAPSE · STAND IN THE BRIGHT RING');
+  }
+});
+
 // Surface salvage follows the planet log's full 2/8/25/45/20 rarity chart.
 partsSystem.setLockedRarities('umbriel', []);
 
 // Which enemy group lives on each planet (see planets.js "enemies").
-const ENEMY_GROUPS = { moon: crawlers, mars: marsMonsters, europa: europaMonsters, titan: titanMonsters };
+const ENEMY_GROUPS = { moon: crawlers, mars: marsMonsters, europa: europaMonsters, titan: titanMonsters, umbriel: umbrielMonsters };
 
 function currentEnemies() {
   return ENEMY_GROUPS[PLANETS[landedPlanet].enemies] || null;
@@ -261,6 +285,7 @@ const martialArts = createMartialArts({
     marsBoss: marsMonsters.isBossDefeated(),
     europaBoss: europaMonsters.isBossDefeated(),
     titanBeaten: chestQuest.isBeaten('titan'),
+    umbrielBoss: umbrielMonsters.isBossDefeated(),
     neptuneBoss: false   // Neptune is not in the game yet
   }),
   // Defeated monsters drop scrap: one piece each, a pile from a boss.
@@ -1413,6 +1438,7 @@ function finishSleep() {
   marsMonsters.respawn(moonSurface.x, moonSurface.y);
   europaMonsters.respawn(moonSurface.x, moonSurface.y);
   titanMonsters.respawn(moonSurface.x, moonSurface.y);
+  umbrielMonsters.respawn(moonSurface.x, moonSurface.y);
 
   showTransmission(
     'LONG-RANGE SCAN COMPLETE\n' +
@@ -2399,7 +2425,8 @@ const MISSION_WORLDS = ['moon', 'mars', 'europa', 'titan', 'umbriel'];
 const WORLD_BOSSES = {
   mars: { name: 'ARES COLOSSUS', defeated: () => marsMonsters.isBossDefeated() },
   europa: { name: 'CRYOLITH LEVIATHAN', defeated: () => europaMonsters.isBossDefeated() },
-  titan: { name: 'NITROGEN WRAITH', defeated: () => titanMonsters.isBossDefeated() }
+  titan: { name: 'NITROGEN WRAITH', defeated: () => titanMonsters.isBossDefeated() },
+  umbriel: { name: 'NOCTURNUS, THE VOID SOVEREIGN', defeated: () => umbrielMonsters.isBossDefeated() }
 };
 const NEXT_MAP = { moon: 'MARS', mars: 'EUROPA', europa: 'TITAN', titan: 'URANUS' };
 const WORLD_DIRECTION = {
@@ -2807,6 +2834,7 @@ function createSnapshot() {
       marsBoss: marsMonsters.save(),
       europaBoss: europaMonsters.save(),
       titanBoss: titanMonsters.save(),
+      umbrielBoss: umbrielMonsters.save(),
 
       // Learned martial arts.
       skills: martialArts.save()
@@ -2890,6 +2918,7 @@ function loadPendingSave() {
     partsSystem.setLockedRarities('europa', europaMonsters.isBossDefeated() ? [] : ['legendary']);
     titanMonsters.load(save.moon?.titanBoss);
     partsSystem.setLockedRarities('titan', titanMonsters.isBossDefeated() ? [] : ['legendary']);
+    umbrielMonsters.load(save.moon?.umbrielBoss);
     partsSystem.setLockedRarities('umbriel', []);
 
     if (save.moon && PLANETS[landedPlanet].chestQuest) {
@@ -2998,6 +3027,15 @@ window.NasarethGame = {
     titanMonsters.debugSetBossHp(hp);
   },
 
+  debugUmbriel() {
+    return umbrielMonsters.list();
+  },
+
+  // TESTING: set the Umbriel boss's health (to check its phases).
+  debugUmbrielBossHp(hp) {
+    umbrielMonsters.debugSetBossHp(hp);
+  },
+
   // Martial arts + scrap info (for testers).
   debugSkills() {
     return {
@@ -3073,7 +3111,7 @@ createAdminMode({
   },
   gotoBoss() {
     if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
-    const lair = { mars: [-2800, -2600], europa: [2900, -2700], titan: [-3000, 2800] }[landedPlanet];
+    const lair = { mars: [-2800, -2600], europa: [2900, -2700], titan: [-3000, 2800], umbriel: [3200, 2900] }[landedPlanet];
     if (!lair) return 'NO BOSS ON THIS PLANET';
     moonSurface.x = lair[0];
     moonSurface.y = lair[1] + 480;
@@ -3477,6 +3515,7 @@ function frame(time) {
       marsMonsters.tickRespawns(dt, respawnView);
       europaMonsters.tickRespawns(dt, respawnView);
       titanMonsters.tickRespawns(dt, respawnView);
+      umbrielMonsters.tickRespawns(dt, respawnView);
 
       clockAccumulator += dt * 2;
 
@@ -3661,6 +3700,8 @@ function frame(time) {
       europaMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
     } else if (landedPlanet === 'titan') {
       titanMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
+    } else if (landedPlanet === 'umbriel') {
+      umbrielMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
     }
 
     // Red flash when a Lunar Crawler hits the player.

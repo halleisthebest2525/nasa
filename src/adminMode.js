@@ -40,7 +40,7 @@ export function createAdminMode(game) {
     ['GO TO NEXT MODULE (on planet)', () => game.gotoNextModule()],
     ['COLLECT ALL MODULES (on planet)', () => game.collectAllModules()],
     ['GO TO CHEST (on planet)', () => game.gotoChest()],
-    ['GO TO BOSS (Mars / Europa / Titan)', () => game.gotoBoss()],
+    ['GO TO BOSS (Mars / Europa / Titan / Umbriel)', () => game.gotoBoss()],
     ['FLY TO EARTH', () => game.flyTo('earth')],
     ['FLY TO MOON', () => game.flyTo('moon')],
     ['FLY TO MARS', () => game.flyTo('mars')],

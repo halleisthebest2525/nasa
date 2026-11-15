@@ -142,6 +142,7 @@ export const PLANETS = {
     rocks: 2100,
     ridges: 90,
     seed: 200000,
+    enemies: 'umbriel', // Void Reavers + Nocturnus, the Void Sovereign (final boss)
     modules: 14,
     scrap: { start: 26, maxActive: 44, interval: [3, 7], minPlayerDistance: 320, valueMultiplier: 2.8, common: 30, rare: 42, epic: 28 },
     landing: { fillSeconds: 0.82, zoneSize: 6.5 },

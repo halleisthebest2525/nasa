@@ -97,7 +97,6 @@ export function createChestQuest(game) {
     const distance = Math.hypot(chest.x - game.moonSurface.x, chest.y - game.moonSurface.y);
 
     if (distance > OPEN_DISTANCE) return;
-    if (game.canOpenChest && !game.canOpenChest(planet)) return;
 
     const reward = CHEST_REWARDS[planet];
 
@@ -108,7 +107,7 @@ export function createChestQuest(game) {
     game.showTransmission(
       reward.map ? 'CHEST OPENED\n' +
       `${reward.name} STAR MAP ACQUIRED\n` +
-      'ROUTE UNLOCKED' : 'FINAL CHEST OPENED\nSTARFALL COMPLETE\nTHE VOID SOVEREIGN HAS FALLEN',
+      'ROUTE UNLOCKED' : 'FINAL CHEST OPENED\nSTARFALL COMPLETE\nALL WORLDS CONQUERED',
       reward.map ? '#ef9c66' : '#FFFFFF'
     );
 

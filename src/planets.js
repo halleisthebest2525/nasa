@@ -132,7 +132,7 @@ export const PLANETS = {
   },
 
   // Umbriel (moon of Uranus): the darkest moon. Cold charcoal ground with
-  // a faint blue tint and a great many craters. The final encounter lives here.
+  // a faint blue tint and a great many craters.
   umbriel: {
     id: 'umbriel',
     name: 'UMBRIEL',
@@ -142,11 +142,10 @@ export const PLANETS = {
     rocks: 2100,
     ridges: 90,
     seed: 200000,
-    enemies: 'umbriel', // Void Reavers + Nocturnus, the final boss
     modules: 14,
     scrap: { start: 26, maxActive: 44, interval: [3, 7], minPlayerDistance: 320, valueMultiplier: 2.8, common: 30, rare: 42, epic: 28 },
     landing: { fillSeconds: 0.82, zoneSize: 6.5 },
-    chestQuest: true,  // final victory chest, guarded by Nocturnus
+    chestQuest: true,  // final victory chest
     palette: {
       space: '#07090c',
       ground: '#4a5158',

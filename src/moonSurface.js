@@ -163,7 +163,7 @@ export class MoonSurface {
     ) <= SHIP_DISTANCE;
   }
 
-  update(dt, canRun = true, exhausted = false, controlMultiplier = 1) {
+  update(dt, canRun = true, exhausted = false) {
     this.scraps.update(this.x, this.y, dt);
 
     if (this.scraps.inventoryOpen) {
@@ -179,9 +179,6 @@ export class MoonSurface {
     if (this.keys.has('arrowdown') || this.keys.has('s')) dy += 1;
     if (this.keys.has('arrowleft') || this.keys.has('a')) dx -= 1;
     if (this.keys.has('arrowright') || this.keys.has('d')) dx += 1;
-    // Umbriel's gravity field changes only this update, never the held keys.
-    dx *= controlMultiplier;
-    dy *= controlMultiplier;
 
     this.moving = dx !== 0 || dy !== 0;
 

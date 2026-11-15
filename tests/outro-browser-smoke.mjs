@@ -10,7 +10,8 @@ import assert from 'node:assert/strict';
 
 const root = path.resolve(import.meta.dirname, '..');
 const integration = process.argv.includes('--integration');
-const shots = process.argv[2] && !integration ? path.resolve(process.argv[2]) : null;
+const shotsArg = process.argv.slice(2).find(arg => !arg.startsWith('--'));
+const shots = shotsArg ? path.resolve(shotsArg) : null;
 if (shots) fs.mkdirSync(shots, { recursive: true });
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'nasareth-outro-'));
 const browserPath = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -123,6 +124,33 @@ try {
     await click('.nso-skip');
     await wait(400);
     assert.equal(await evaluate('!!document.querySelector(".nso-stage")'), false);
+    await wait(3000);
+    const credits = await evaluate(`(() => {
+      const root = document.querySelector('#end-credits').shadowRoot;
+      const text = root.querySelector('pre'), glass = root.querySelector('.glass');
+      return { text: text.textContent, image: root.querySelector('img').naturalWidth,
+        fits: text.getBoundingClientRect().height <= glass.clientHeight && text.scrollWidth <= glass.clientWidth };
+    })()`);
+    assert.equal(credits.text, 'Winston Lee Developer\nBrandon Kim Developer\nJinmo Koo Designer\nDylan  Son SFX Artist\nDaniel Kim  General Manager\nJoseph You Main Tester/  Debugger\nStudents of Fayston Preparatory of Suji\n\nThank You');
+    assert.ok(credits.image > 0, 'visor artwork loaded');
+    assert.ok(credits.fits, 'credits fit inside the visor');
+    await shot('end-credits');
+    await size(390, 844);
+    await wait(100);
+    assert.equal(await evaluate(`(() => {
+      const root = document.querySelector('#end-credits').shadowRoot;
+      const r = root.querySelector('.glass').getBoundingClientRect();
+      return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;
+    })()`), true, 'visor credits remain on screen in portrait');
+    await shot('end-credits-portrait');
+    await size(1280, 720);
+    const continuePoint = await evaluate(`(() => {
+      const r = document.querySelector('#end-credits').shadowRoot.querySelector('button').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    })()`);
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...continuePoint });
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...continuePoint });
+    assert.equal(await evaluate('!!document.querySelector("#end-credits")'), false);
     assert.equal(await evaluate('window.__outroTest.earthBase.isOpen()'), true);
     await click(`.earth-part[data-type="${types[0]}"][data-rarity="legendary"]`);
     assert.equal(await evaluate('!!document.querySelector(".nso-stage")'), false, 'refitting does not replay the ending');
@@ -130,7 +158,7 @@ try {
     assert.equal(saved.snapshot.outroPlayed, true, 'ending flag persists in the save');
     assert.deepEqual(errors.map(e => e.exception?.description || e.text), []);
     assert.deepEqual(warnings, []);
-    console.log('PASS: owning five legendary modules is insufficient; fitting all five starts one cutscene, playback advances, Skip returns to the shipyard, refitting does not replay, and the completion flag saves.');
+    console.log('PASS: fitting all five legendary modules starts the ending; credits show exact text on the visor in desktop and portrait; Continue returns to the shipyard; refitting does not replay; completion saves.');
   } else {
   await send('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/NASARETH_FINAL_CUTSCENE/index.html' });
   await wait(800);

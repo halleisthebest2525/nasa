@@ -24,6 +24,7 @@ import { createTitanMonsters } from './titanMonsters.js';
 import { createUmbrielMonsters } from './umbrielMonsters.js';
 import { createEarthBase } from './earthBase.js';
 import { playOutro } from '../NASARETH_FINAL_CUTSCENE/cutscene.js';
+import { playEndCredits } from '../NASARETH_FINAL_CUTSCENE/credits.js';
 import { createPlanetLog } from './planetLog.js';
 import { createMusic } from './music.js';
 import { createMartialArts } from './martialArts.js';
@@ -1322,7 +1323,7 @@ window.addEventListener('nasareth:modules-changed', () => {
   if (!outroPlayed && earthBase.isOpen() &&
       partsSystem.types().every(type => installed[type] === 'legendary')) {
     outroPlayed = true;
-    playOutro().catch(error => {
+    playOutro().then(() => playEndCredits()).catch(error => {
       outroPlayed = false;
       console.error('Could not play the final cutscene:', error);
     });

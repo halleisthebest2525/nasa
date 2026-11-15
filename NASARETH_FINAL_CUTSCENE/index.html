@@ -29,6 +29,7 @@
 
   <script type="module">
     import { playOutro, preloadOutro } from './cutscene.js';
+    import { playEndCredits } from './credits.js';
 
     const launch = document.querySelector('#launch');
     const button = document.querySelector('#play');
@@ -37,6 +38,7 @@
     button.addEventListener('click', async () => {
       launch.style.display = 'none';
       await playOutro();
+      await playEndCredits();
       button.textContent = 'REPLAY';
       launch.style.display = 'grid';
       button.focus();

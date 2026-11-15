@@ -14,6 +14,7 @@ const views = {
 };
 
 let gameStarted = false;
+let prologuePlaying = false;
 
 // ==========================================
 // MUSIC
@@ -73,7 +74,7 @@ async function loadMusic() {
 }
 
 function playMenuMusic() {
-  if (!menuMusic || gameStarted) return;
+  if (!menuMusic || (gameStarted && !prologuePlaying)) return;
 
   const playback = menuMusic.play();
 
@@ -226,6 +227,11 @@ async function startGame(snapshot = null) {
   if (gameStarted) return;
 
   gameStarted = true;
+  prologuePlaying = !snapshot;
+  if (prologuePlaying) {
+    musicRequested = true;
+    playMenuMusic();
+  }
 
   const launchButton = document.querySelector('#new-game');
 
@@ -242,10 +248,10 @@ async function startGame(snapshot = null) {
     localStorage.removeItem('nasareth.pending-load');
   }
 
-  let closePrologue = null;
   try {
     // Story belongs to a new expedition, never app startup or save loading.
-    if (!snapshot) closePrologue = await playPrologue();
+    if (!snapshot) await playPrologue();
+    prologuePlaying = false;
     await import('./main.js');
 
     // Stop menu music when the expedition begins.
@@ -256,9 +262,8 @@ async function startGame(snapshot = null) {
 
     game.classList.add('game-active');
     menu.classList.add('menu-hidden');
-    closePrologue?.();
   } catch (error) {
-    closePrologue?.();
+    prologuePlaying = false;
     console.error('Project: Nasareth failed to start:', error);
 
     gameStarted = false;

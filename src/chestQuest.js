@@ -19,7 +19,7 @@ export const CHEST_REWARDS = {
   mars: { map: 'europa', name: 'EUROPA (MOON OF JUPITER)' },
   europa: { map: 'titan', name: 'TITAN (MOON OF SATURN)' },
   titan: { map: 'umbriel', name: 'URANUS (MOON UMBRIEL)' },
-  umbriel: { map: 'neptune', name: 'NEPTUNE' }
+  umbriel: { map: null, name: 'STARFALL COMPLETE' }
 };
 
 // game = { partsSystem, moonSurface, getPlanet(), showTransmission(text, color), onPlanetBeaten(planet) }
@@ -97,18 +97,19 @@ export function createChestQuest(game) {
     const distance = Math.hypot(chest.x - game.moonSurface.x, chest.y - game.moonSurface.y);
 
     if (distance > OPEN_DISTANCE) return;
+    if (game.canOpenChest && !game.canOpenChest(planet)) return;
 
     const reward = CHEST_REWARDS[planet];
 
     state.chests[planet] = null;
     state.opened[planet] = true;
-    state.maps[reward.map] = true;
+    if (reward.map) state.maps[reward.map] = true;
 
     game.showTransmission(
-      'CHEST OPENED\n' +
+      reward.map ? 'CHEST OPENED\n' +
       `${reward.name} STAR MAP ACQUIRED\n` +
-      'ROUTE UNLOCKED',
-      '#ef9c66'
+      'ROUTE UNLOCKED' : 'FINAL CHEST OPENED\nSTARFALL COMPLETE\nTHE VOID SOVEREIGN HAS FALLEN',
+      reward.map ? '#ef9c66' : '#FFFFFF'
     );
 
     if (game.onPlanetBeaten) game.onPlanetBeaten(planet);

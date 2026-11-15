@@ -16,9 +16,11 @@ export function createWarpMenu(game) {
   // Small button on the left side of the screen.
   const button = document.createElement('button');
 
-  button.textContent = 'WARP (T)';
+  button.id = 'warp-button';
+  button.type = 'button';
+  button.textContent = 'WARP TO PLANET (T)';
   button.style.cssText = `
-    position:fixed; left:30px; top:300px; z-index:21; display:none;
+    position:fixed; right:30px; bottom:70px; z-index:21; display:none;
     padding:8px 14px; font:bold 12px monospace; letter-spacing:2px; cursor:pointer;
     background:rgba(16,28,44,.92); color:#bfe6ff; border:1px solid #6fb6e6;
     box-shadow:0 0 14px rgba(110,180,230,.35);
@@ -114,7 +116,13 @@ export function createWarpMenu(game) {
     isOpen: () => open,
 
     // Called every frame: shows / hides the WARP button.
-    refresh(visible) {
+    refresh(visible, available = true) {
+      button.disabled = !available;
+      button.title = available
+        ? 'Return to Earth or a planet beaten in this run'
+        : 'Open your first planet chest to unlock return travel';
+      button.style.opacity = available ? '1' : '0.5';
+      button.style.cursor = available ? 'pointer' : 'default';
       if (visible === buttonShown) return;
       buttonShown = visible;
       button.style.display = visible ? 'block' : 'none';

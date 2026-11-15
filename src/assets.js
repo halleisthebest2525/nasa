@@ -1,3 +1,5 @@
+import { prepareUmbrielFrames } from './umbrielSprites.js';
+
 export async function loadAssets() {
   const assets = {};
 
@@ -41,5 +43,6 @@ export async function loadAssets() {
     console.warn('Asset loading:', error);
   }
 
+  prepareUmbrielFrames(assets);
   return assets;
 }

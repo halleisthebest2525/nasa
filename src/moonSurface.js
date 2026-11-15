@@ -163,7 +163,7 @@ export class MoonSurface {
     ) <= SHIP_DISTANCE;
   }
 
-  update(dt, canRun = true, exhausted = false) {
+  update(dt, canRun = true, exhausted = false, controlMultiplier = 1) {
     this.scraps.update(this.x, this.y, dt);
 
     if (this.scraps.inventoryOpen) {
@@ -179,6 +179,9 @@ export class MoonSurface {
     if (this.keys.has('arrowdown') || this.keys.has('s')) dy += 1;
     if (this.keys.has('arrowleft') || this.keys.has('a')) dx -= 1;
     if (this.keys.has('arrowright') || this.keys.has('d')) dx += 1;
+    // Umbriel's gravity field changes only this update, never the held keys.
+    dx *= controlMultiplier;
+    dy *= controlMultiplier;
 
     this.moving = dx !== 0 || dy !== 0;
 
@@ -241,7 +244,12 @@ export class MoonSurface {
     this.drawPlayer(ctx, centerX, centerY);
 
     // Martial arts: punches, kicks and hit sparks (set by main.js).
-    if (this.combat) this.combat.draw(ctx, cameraX, cameraY);
+    if (this.combat) {
+      ctx.save();
+      if (this.planet.id === 'umbriel') ctx.filter = 'grayscale(1)';
+      this.combat.draw(ctx, cameraX, cameraY);
+      ctx.restore();
+    }
 
     // HARD PLAYER-CENTERED VISIBILITY
     this.drawVisibility(ctx, width, height);
@@ -253,7 +261,12 @@ export class MoonSurface {
     }
 
     // Energy techniques also glow in the dark.
-    if (this.combat) this.combat.drawGlow(ctx, cameraX, cameraY);
+    if (this.combat) {
+      ctx.save();
+      if (this.planet.id === 'umbriel') ctx.filter = 'grayscale(1)';
+      this.combat.drawGlow(ctx, cameraX, cameraY);
+      ctx.restore();
+    }
 
     // UI stays visible above the darkness.
     this.drawInteractionPrompt(ctx, centerX, centerY);

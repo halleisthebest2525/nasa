@@ -1,7 +1,7 @@
-mainmenu=./src/Space Background.mp3
+mainmenu=./audio/Space Background.mp3
 
 # In-game soundtrack (src/music.js picks the track for each situation).
-travel=./src/Space Background.mp3
+travel=./audio/Space Background.mp3
 moon=./audio/Moon.mp3
 mars=./audio/Mars.mp3
 europa=./audio/Europa.mp3
@@ -11,9 +11,9 @@ umbriel=./audio/Uranus.mp3
 shop=./audio/Shopping shop.mp3
 danger=./audio/Monster.mp3
 sting=./audio/monster-appears.mp3
-hit=./src/Monster hit.mp3
-walk=./src/Walking track.mp3
-run=./src/Running track.mp3
+hit=./audio/Monster hit.mp3
+walk=./audio/Walking track.mp3
+run=./audio/Running track.mp3
 
 # OPTIONAL EXTRAS: add a line (without the #) when you have the file.
 # The game works without them and starts using them as soon as they exist.

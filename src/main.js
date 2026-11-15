@@ -21,6 +21,7 @@ import { PLANETS } from './planets.js';
 import { createMarsMonsters } from './marsMonsters.js';
 import { createEuropaMonsters } from './europaMonsters.js';
 import { createTitanMonsters } from './titanMonsters.js';
+import { createUmbrielMonsters } from './umbrielMonsters.js';
 import { createEarthBase } from './earthBase.js';
 import { createPlanetLog } from './planetLog.js';
 import { adminFlags, createAdminMode } from './adminMode.js'; // TEMPORARY
@@ -72,15 +73,20 @@ const chestQuest = createChestQuest({
   getPlanet: () => landedPlanet,
   // The chest lies next to the boss's lair on worlds that have a boss.
   getChestSpot(planet) {
-    const lair = { mars: marsMonsters.lair, europa: europaMonsters.lair, titan: titanMonsters.lair }[planet];
+    const lair = { mars: marsMonsters.lair, europa: europaMonsters.lair, titan: titanMonsters.lair, umbriel: umbrielMonsters.lair }[planet];
     return lair ? { x: lair.x + 210, y: lair.y + 190 } : null;
   },
   showTransmission: (text, color) => showTransmission(text, color),
+  canOpenChest: planet => planet !== 'umbriel' || umbrielMonsters.isBossDefeated(),
 
   // Planet beaten (all modules + chest): Earth calls the player home to
   // refit the ship before the next destination.
-  onPlanetBeaten() {
+  onPlanetBeaten(planet) {
     setTimeout(() => {
+      if (planet === 'umbriel') {
+        showTransmission('STARFALL COMPLETE\nNOCTURNUS HAS FALLEN\nTHE FINAL WORLD IS CONQUERED — RETURN TO EARTH', '#FFFFFF');
+        return;
+      }
       showTransmission(
         'INCOMING CALL · EARTH CONTROL\n' +
         'GOOD WORK OUT THERE, PILOT\n' +
@@ -215,8 +221,21 @@ const titanMonsters = createTitanMonsters(assets, {
 // Legendary modules only drop on Titan after the boss is defeated.
 partsSystem.setLockedRarities('titan', ['legendary']);
 
+const umbrielMonsters = createUmbrielMonsters(assets, {
+  onBossDefeated(x, y) {
+    partsSystem.addRewardPart(x, y, 'legendary');
+    partsSystem.setLockedRarities('umbriel', []);
+    showTransmission('NOCTURNUS DEFEATED\nA LEGENDARY MODULE LIES WHERE THE CORE FELL\nUMBRIEL LEGENDARY SALVAGE UNLOCKED', '#FFFFFF');
+  },
+  onBossPhase(phase) {
+    showTransmission(`NOCTURNUS — PHASE ${phase}\n${phase === 2 ? 'THE FRACTURE — WATCH THE WHITE CORE' : 'THE ETERNAL ECLIPSE — KEEP AN ESCAPE ROUTE'}`, '#FFFFFF');
+  },
+  onCollapse() { showMoonMessage('ECLIPSE COLLAPSE — GET BEYOND THE WHITE DANGER RING'); }
+});
+partsSystem.setLockedRarities('umbriel', ['legendary']);
+
 // Which enemy group lives on each planet (see planets.js "enemies").
-const ENEMY_GROUPS = { moon: crawlers, mars: marsMonsters, europa: europaMonsters, titan: titanMonsters };
+const ENEMY_GROUPS = { moon: crawlers, mars: marsMonsters, europa: europaMonsters, titan: titanMonsters, umbriel: umbrielMonsters };
 
 function currentEnemies() {
   return ENEMY_GROUPS[PLANETS[landedPlanet].enemies] || null;
@@ -1405,6 +1424,7 @@ function finishSleep() {
   marsMonsters.respawn(moonSurface.x, moonSurface.y);
   europaMonsters.respawn(moonSurface.x, moonSurface.y);
   titanMonsters.respawn(moonSurface.x, moonSurface.y);
+  umbrielMonsters.respawn(moonSurface.x, moonSurface.y);
 
   showTransmission(
     'LONG-RANGE SCAN COMPLETE\n' +
@@ -2391,9 +2411,10 @@ const MISSION_WORLDS = ['moon', 'mars', 'europa', 'titan', 'umbriel'];
 const WORLD_BOSSES = {
   mars: { name: 'ARES COLOSSUS', defeated: () => marsMonsters.isBossDefeated() },
   europa: { name: 'CRYOLITH LEVIATHAN', defeated: () => europaMonsters.isBossDefeated() },
-  titan: { name: 'NITROGEN WRAITH', defeated: () => titanMonsters.isBossDefeated() }
+  titan: { name: 'NITROGEN WRAITH', defeated: () => titanMonsters.isBossDefeated() },
+  umbriel: { name: 'NOCTURNUS, THE VOID SOVEREIGN', defeated: () => umbrielMonsters.isBossDefeated() }
 };
-const NEXT_MAP = { moon: 'MARS', mars: 'EUROPA', europa: 'TITAN', titan: 'URANUS', umbriel: 'NEPTUNE' };
+const NEXT_MAP = { moon: 'MARS', mars: 'EUROPA', europa: 'TITAN', titan: 'URANUS' };
 const WORLD_DIRECTION = {
   moon: 'RIGHT AND UP FROM EARTH',
   mars: 'UP AND LEFT FROM EARTH',
@@ -2439,7 +2460,7 @@ function missionStatus() {
 
     if (boss) items.push({ label: `BOSS: ${boss.name}`, done: boss.defeated() });
 
-    items.push({ label: `CHEST OPENED (${NEXT_MAP[id]} STAR MAP)`, done: beaten });
+    items.push({ label: id === 'umbriel' ? 'FINAL CHEST OPENED — STARFALL COMPLETE' : `CHEST OPENED (${NEXT_MAP[id]} STAR MAP)`, done: beaten });
 
     rows.push({ label: name, done: beaten, items, locked: !route });
 
@@ -2451,7 +2472,7 @@ function missionStatus() {
       if (!landed) steps.push(`FLY TO ${name} (${WORLD_DIRECTION[id]}) AND LAND`);
       if (left > 0) steps.push(`COLLECT ${left} MORE MODULE${left === 1 ? '' : 'S'}`);
       if (boss && !boss.defeated()) steps.push(`DEFEAT ${boss.name} (IT GUARDS THE CHEST)`);
-      steps.push(`OPEN THE CHEST FOR THE ${NEXT_MAP[id]} STAR MAP`);
+      steps.push(id === 'umbriel' ? 'OPEN THE FINAL CHEST TO COMPLETE STARFALL' : `OPEN THE CHEST FOR THE ${NEXT_MAP[id]} STAR MAP`);
       steps.push('COME BACK TO EARTH AND FIT YOUR NEW MODULES');
 
       next = {
@@ -2799,6 +2820,7 @@ function createSnapshot() {
       marsBoss: marsMonsters.save(),
       europaBoss: europaMonsters.save(),
       titanBoss: titanMonsters.save(),
+      umbrielBoss: umbrielMonsters.save(),
 
       // Learned martial arts.
       skills: martialArts.save()
@@ -2879,6 +2901,8 @@ function loadPendingSave() {
     partsSystem.setLockedRarities('europa', europaMonsters.isBossDefeated() ? [] : ['legendary']);
     titanMonsters.load(save.moon?.titanBoss);
     partsSystem.setLockedRarities('titan', titanMonsters.isBossDefeated() ? [] : ['legendary']);
+    umbrielMonsters.load(save.moon?.umbrielBoss);
+    partsSystem.setLockedRarities('umbriel', umbrielMonsters.isBossDefeated() ? [] : ['legendary']);
 
     if (save.moon && PLANETS[landedPlanet].chestQuest) {
       chestQuest.checkModules();
@@ -2980,6 +3004,8 @@ window.NasarethGame = {
   debugTitan() {
     return titanMonsters.list();
   },
+  debugUmbriel() { return umbrielMonsters.list(); },
+  debugUmbrielBossHp(hp) { umbrielMonsters.debugSetBossHp(hp); },
 
   // TESTING: set the Titan boss's health (to check its phases).
   debugTitanBossHp(hp) {
@@ -3419,10 +3445,13 @@ function frame(time) {
 
   updateMusic(dt);
 
-  // The WARP button is only on screen when warping is possible.
+  // Keep return travel discoverable; unlock it after the first beaten world.
   warpMenu.refresh(
-    warpAvailable() && !paused && !computerOpen && !earthBase.isOpen() &&
-    !skillMenu.isOpen() && !planetLog.isOpen() && !howToPlay.isOpen() && !warpMenu.isOpen()
+    launchComplete && !gameOver && !sleeping && !warpTravel.isActive() &&
+    !isGaugeChallengeActive() && !paused && !computerOpen && !earthBase.isOpen() &&
+    !launchConfirmationOpen && !sleepConfirmationOpen && !moonSurface.scraps.inventoryOpen &&
+    !skillMenu.isOpen() && !planetLog.isOpen() && !howToPlay.isOpen() && !warpMenu.isOpen(),
+    warpAvailable()
   );
 
   // ADMIN MODE (temporary): god mode keeps everything full.
@@ -3462,6 +3491,8 @@ function frame(time) {
       marsMonsters.tickRespawns(dt, respawnView);
       europaMonsters.tickRespawns(dt, respawnView);
       titanMonsters.tickRespawns(dt, respawnView);
+      // Other worlds' respawn timers do not use the Umbriel player's view.
+      if (landedPlanet === 'umbriel') umbrielMonsters.tickRespawns(dt, respawnView);
 
       clockAccumulator += dt * 2;
 
@@ -3525,7 +3556,8 @@ function frame(time) {
           onFoot.update(dt, survival.canRun(), survival.staminaExhausted);
           survival.updateStamina(dt, isRunning());
         } else if (gameMode === 'moon') {
-          moonSurface.update(dt, survival.canRun(), survival.staminaExhausted);
+          const controlMultiplier = currentEnemies()?.controlMultiplier?.(moonSurface.x, moonSurface.y) ?? 1;
+          moonSurface.update(dt, survival.canRun(), survival.staminaExhausted, controlMultiplier);
 
           // Attacks in progress: flying kick, energy waves, cooldowns.
           martialArts.update(dt);
@@ -3646,11 +3678,15 @@ function frame(time) {
       europaMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
     } else if (landedPlanet === 'titan') {
       titanMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
+    } else if (landedPlanet === 'umbriel') {
+      umbrielMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
     }
 
     // Red flash when a Lunar Crawler hits the player.
     if (playerHurtFlash > 0) {
-      pixelCtx.fillStyle = `rgba(160, 20, 20, ${0.35 * playerHurtFlash})`;
+      pixelCtx.fillStyle = landedPlanet === 'umbriel'
+        ? `rgba(160,160,160,${0.35 * playerHurtFlash})`
+        : `rgba(160, 20, 20, ${0.35 * playerHurtFlash})`;
       pixelCtx.fillRect(0, 0, width, height);
     }
 

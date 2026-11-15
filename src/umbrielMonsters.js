@@ -69,7 +69,7 @@ const BOSS = {
   lairX: 3200,           // guards the bottom-right of Umbriel
   lairY: 2900,
   scale: 3,
-  hp: 120,               // Titan Wraith: 66
+  hp: 85,                // Titan Wraith: 66 (was 120: too long a fight)
   // Phase 2 below 70% HP, phase 3 below 35%.
   phaseAt: [0.7, 0.35],
   moveSpeed: [60, 90, 110],

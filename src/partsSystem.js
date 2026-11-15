@@ -676,12 +676,11 @@ export function attachPartsSystem(moonSurface) {
     },
 
     // Boss reward: a guaranteed part placed in the world (picked up like any part).
-    addRewardPart(x, y, rarity) {
-      const types = ['engine', 'fuelTank', 'energyModule', 'hullCargo', 'computer'];
-
+    // type is optional: without it a random type is chosen.
+    addRewardPart(x, y, rarity, type = null) {
       parts.items.push({
-        id: `boss-reward-${Date.now().toString(36)}`,
-        type: types[Math.floor(Math.random() * types.length)],
+        id: `boss-reward-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        type: type || TYPES[Math.floor(Math.random() * TYPES.length)],
         rarity,
         x: Math.round(x),
         y: Math.round(y),

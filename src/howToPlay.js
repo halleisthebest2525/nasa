@@ -65,6 +65,9 @@ const SECTIONS = [
       'SUIT OXYGEN runs out on the surface. At 0 you lose health very fast: get back in the ship.',
       'The ship uses a little fuel even when it is only drifting.',
       'At 2:00 AM you fall asleep. Sleep in the ship to stay safe.',
+      ['H', 'use a MED KIT: +40 health (only when you are hurt)'],
+      'Buy med kits at the SHIP COMPUTER for 45 scraps each. You can carry 5 (better modules carry more).',
+      'Your med kit count shows on the ship computer. Use one before a boss fight gets too close.',
       ['P', 'planet log (progress and module odds)'],
       ['ESC', 'pause · save'],
       ['F1', 'this help']

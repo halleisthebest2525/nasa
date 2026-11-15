@@ -22,7 +22,7 @@ const PROLOGUE_MARKUP = `
 <div class="graphic" style="--delay:46s"><svg viewBox="0 0 640 400" fill="none" stroke="currentColor" stroke-width="3"><path d="M320 40L360 120L360 260L405 313L320 290L235 313L280 260L280 120Z" stroke-dasharray="12 12"/><path d="M145 65L260 155M380 220L510 325M390 95L510 40M250 270L120 340" stroke-width="7"/><path d="M125 100l22-23m-8 63 34-22m335 182 22-28M466 64l30-15"/><circle cx="330" cy="191" r="76" stroke-dasharray="5 22"/></svg></div>
 <div class="graphic" style="--delay:65s"><svg viewBox="0 0 640 400" fill="none" stroke="currentColor" stroke-width="3"><path d="M250 120q70-85 140 0v116q-70 58-140 0z"/><path d="M260 132q60-50 120 0v80q-60 35-120 0z" fill="currentColor" fill-opacity=".12"/><path d="M250 226L200 280L205 335L270 348M390 226L440 280L435 335L370 348M270 255h100v110H270z"/><path d="M300 295h40"/></svg></div>
 <div class="graphic" style="--delay:84s"><svg viewBox="0 0 640 400" fill="none" stroke="currentColor" stroke-width="3"><path d="M320 48l37 70v148l40 48-77-22-77 22 40-48V118z"/><path d="M297 140h46v110h-46z"/><circle cx="320" cy="193" r="12"/><path d="M300 314l-17 55m37-50v63m20-68 17 55" stroke-dasharray="8 11"/><path d="M130 290h65m250 0h65M125 180h75m240 0h75" stroke-dasharray="8 12"/></svg></div>
-</div><div class="hint">2035 · NASA FINAL RECOVERY MISSION</div><div class="stage" id="stage"><div class="crawl"><div class="eyebrow">PROLOGUE</div><h1>PROJECT: NASARETH</h1><p>In 2033, NASA launched PROJECT: GENESIS. Its mission was simple: protect Earth from a mysterious swarm of asteroids moving toward the inner solar system.</p><p>Genesis was the most advanced spacecraft humanity had ever built. Nations worked together to create its powerful detection and asteroid-deflection systems. The project cost nearly everything NASA had.</p><p>But Genesis never completed its mission. An asteroid fragment escaped detection and struck the ship. In moments, the spacecraft was torn apart.</p><p>Its emergency system launched five vital components toward different worlds across the solar system. The damaged central structure began its automatic journey back to Earth.</p><p>Only one crew member survived: the commander of Genesis, who escaped in an emergency capsule.</p><p>Two years passed. NASA recovered what remained of Genesis, but it had no money to build another ship like it. Its final hope was an older spacecraft with enough power to reach only the Moon.</p><p>Now, in 2035, that same commander has volunteered for one last mission: PROJECT: NASARETH. The five lost components must be found, but nobody knows exactly where they are. The commander must explore distant worlds, collect scraps, and upgrade the small spacecraft to travel farther.</p><p>Find all five legendary components. Rebuild Genesis. Complete the mission that once seemed lost forever.</p></div><div class="fade"></div></div><div class="intro" id="intro"><div><p>NASA · 2035</p><h2>PROJECT: NASARETH</h2><p>THE FINAL RECOVERY MISSION</p></div></div><div class="controls"><button type="button" id="skip">Skip Intro</button></div>
+</div><div class="hint">2035 · NASA FINAL RECOVERY MISSION</div><div class="stage" id="stage"><div class="crawl"><div class="eyebrow">PROLOGUE</div><h1>PROJECT: NASARETH</h1><p>In 2033, NASA launched PROJECT: GENESIS. Its mission was simple: protect Earth from a mysterious swarm of asteroids moving toward the inner solar system.</p><p>Genesis was the most advanced spacecraft humanity had ever built. Nations worked together to create its powerful detection and asteroid-deflection systems. The project cost nearly everything NASA had.</p><p>But Genesis never completed its mission. An asteroid fragment escaped detection and struck the ship. In moments, the spacecraft was torn apart.</p><p>Its emergency system launched five vital components toward different worlds across the solar system. The damaged central structure began its automatic journey back to Earth.</p><p>Only one crew member survived: the commander of Genesis, who escaped in an emergency capsule.</p><p>Two years passed. NASA recovered what remained of Genesis, but it had no money to build another ship like it. Its final hope was an older spacecraft with enough power to reach only the Moon.</p><p>Now, in 2035, that same commander has volunteered for one last mission: PROJECT: NASARETH. The five lost components must be found, but nobody knows exactly where they are. The commander must explore distant worlds, collect scraps, and upgrade the small spacecraft to travel farther.</p><p>Find all five legendary components. Rebuild Genesis. Complete the mission that once seemed lost forever.</p></div><div class="fade"></div></div><div class="intro" id="intro"><div><p>NASA · 2035</p><h2>PROJECT: NASARETH</h2><p>THE FINAL RECOVERY MISSION</p></div></div>
 `;
 
 export function playPrologue() {
@@ -43,8 +43,7 @@ export function playPrologue() {
     const crawl = root.querySelector('.crawl');
     const graphics = root.querySelector('#graphics');
     const intro = root.querySelector('#intro');
-    const skip = root.querySelector('#skip');
-    // A disabled canvas/GPU must not prevent the story or Skip from working.
+    // A disabled canvas/GPU must not prevent the story from playing.
     let ctx = null;
     try { ctx = canvas.getContext('2d'); } catch { /* Plain background is fine. */ }
     let stars = [], width = 0, height = 0, frame = 0;
@@ -89,8 +88,6 @@ export function playPrologue() {
       frame = requestAnimationFrame(draw);
     }
 
-    // Register Skip before displaying the overlay or starting any animation.
-    skip.addEventListener('click', finish);
     crawl.addEventListener('animationend', event => {
       if (event.target === crawl && event.animationName === 'rise') finish();
     });
@@ -98,7 +95,6 @@ export function playPrologue() {
     window.addEventListener('resize', resize);
     resize();
     frame = requestAnimationFrame(draw);
-    skip.focus();
     titleTimer = setTimeout(() => {
       if (finished) return;
       intro.classList.add('hidden');

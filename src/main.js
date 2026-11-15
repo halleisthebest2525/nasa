@@ -223,13 +223,19 @@ partsSystem.setLockedRarities('titan', ['legendary']);
 // UMBRIEL: Void Reavers and Nocturnus, the Void Sovereign (final boss).
 const umbrielMonsters = createUmbrielMonsters(assets, {
   onBossDefeated(x, y) {
-    // The final prize: a guaranteed LEGENDARY module where it fell.
-    partsSystem.addRewardPart(x, y, 'legendary');
+    // The final prize: one LEGENDARY module of EVERY type, in a circle
+    // where it fell (picked up like any module, fitted at Earth).
+    const types = ['engine', 'fuelTank', 'energyModule', 'hullCargo', 'computer'];
+
+    types.forEach((type, i) => {
+      const angle = -Math.PI / 2 + i / types.length * Math.PI * 2;
+      partsSystem.addRewardPart(x + Math.cos(angle) * 90, y + Math.sin(angle) * 90, 'legendary', type);
+    });
 
     showTransmission(
       'NOCTURNUS DESTROYED\n' +
       'THE VOID SOVEREIGN IS NO MORE\n' +
-      'A LEGENDARY MODULE LIES WHERE IT FELL',
+      'EVERY LEGENDARY MODULE LIES WHERE IT FELL',
       '#ffffff'
     );
   },

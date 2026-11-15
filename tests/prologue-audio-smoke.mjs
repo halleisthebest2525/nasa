@@ -101,13 +101,8 @@ try {
   assert.ok(second.time-first.time>1,'Audio playback did not advance');
   assert.ok(!second.error);
   console.log('CUTSCENE AUDIO: '+JSON.stringify({first,second}));
-  await click('#run-prologue >>> #skip');
-  await until('!!window.NasarethGame && document.querySelector("#game").classList.contains("game-active")',30000);
-  const after=await state();
-  assert.equal(after.prologue,false);
-  assert.equal(after.paused,true);
   assert.deepEqual(errors,[]);
-  console.log('PASS: cutscene scrolls and plays music under a nested URL with iframes blocked and prologue.html unavailable; Skip starts gameplay.');
+  console.log('PASS: cutscene scrolls and plays music under a nested URL with iframes blocked and prologue.html unavailable (no Skip button).');
 
 } finally {
   socket?.close();

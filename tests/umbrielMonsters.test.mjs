@@ -6,7 +6,7 @@ import { createUmbrielMonsters } from '../src/umbrielMonsters.js';
 // No images are needed for the simulation: frames may be null.
 const ASSETS = {};
 const LAIR = { x: 3200, y: 2900 };
-const BOSS_HP = 120;
+const BOSS_HP = 85;
 const DT = 1 / 60;
 
 // A player who stands where the test puts them and remembers every hit.

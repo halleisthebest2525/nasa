@@ -16,8 +16,9 @@ export class Ship {
   update(dt, fuelAvailable = true, modules = {}) {
     const c = CONFIG.ship;
 
-    if (isDown('a', 'arrowleft')) this.angle -= c.turnSpeed * dt;
-    if (isDown('d', 'arrowright')) this.angle += c.turnSpeed * dt;
+    // Arrow keys only (WASD is switched off).
+    if (isDown('arrowleft')) this.angle -= c.turnSpeed * dt;
+    if (isDown('arrowright')) this.angle += c.turnSpeed * dt;
 
     if (!fuelAvailable) {
       this.vx = 0;
@@ -26,8 +27,8 @@ export class Ship {
       return;
     }
 
-    const forward = isDown('w', 'arrowup');
-    const reverse = isDown('s', 'arrowdown');
+    const forward = isDown('arrowup');
+    const reverse = isDown('arrowdown');
 
     this.boosting = forward && isDown('shift');
 

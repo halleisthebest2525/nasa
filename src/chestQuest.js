@@ -49,6 +49,15 @@ export function createChestQuest(game) {
       if (Math.hypot(x - px, y - py) >= CHEST_MIN_DISTANCE) break;
     }
 
+    // On a world with a boss, the chest lies next to the boss's lair:
+    // the boss guards it.
+    const guarded = game.getChestSpot ? game.getChestSpot(planet) : null;
+
+    if (guarded) {
+      x = guarded.x;
+      y = guarded.y;
+    }
+
     state.chests[planet] = { x: Math.round(x), y: Math.round(y) };
   }
 

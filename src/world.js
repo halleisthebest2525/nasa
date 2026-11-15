@@ -117,11 +117,11 @@ export class World {
       })
     );
 
-    // Mars: far away in the top-left (about 2x the Moon's distance).
-    // ~3 minutes at normal speed from Earth. Landing needs the Mars star map.
+    // Mars: in the top-left, about 1.4x the Moon's distance from Earth.
+    // Landing needs the Mars star map.
     this.mars = {
-      x: -18000,
-      y: -16500,
+      x: -14000,
+      y: -12800,
       radius: 105,
       name: 'MARS'
     };
@@ -162,11 +162,11 @@ export class World {
       radius: 420
     };
 
-    // TITAN: moon of Saturn, far in the outer system (bottom-left).
+    // TITAN: moon of Saturn, to the LEFT of Europa (farther out).
     // Needs the Titan star map from the Europa chest.
     this.titan = {
-      x: -30000,
-      y: 34000,
+      x: -39500,
+      y: -24500,
       radius: 170,
       name: 'TITAN'
     };

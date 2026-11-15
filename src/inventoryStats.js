@@ -55,7 +55,7 @@ export function createStatsSection(game) {
       ['CHEST DETECTOR', progress.chestDetector ? 'YES' : 'NO'],
       ['MARS MAP', progress.marsMap ? 'ACQUIRED' : 'NONE'],
       ['MED KITS', `${s.medkits || 0} (H TO USE)`],
-      ['MARTIAL ARTS', `${game.getSkillCount ? game.getSkillCount() : 1} / 6 SKILLS (K)`]
+      ['MARTIAL ARTS', `${game.getSkillCount ? game.getSkillCount() : 1} / 5 SKILLS (K)`]
     ];
   }
 

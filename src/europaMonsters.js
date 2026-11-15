@@ -56,7 +56,7 @@ const BOSS = {
   lairX: 2900,           // guards the top-right of Europa
   lairY: -2700,
   scale: 2.2,            // body ~275 px wide: about 5-6x a Frost Skitter
-  hp: 110,
+  hp: 72,                // was 110: too hard
   // Phase 2 below 60% HP (adds Ice Spires), phase 3 below 30% (faster, double spires).
   phaseAt: [0.6, 0.3],
   moveSpeed: [55, 75, 95],
@@ -64,9 +64,9 @@ const BOSS = {
   leashRange: 1300,      // won't follow you farther than this from its lair
   bodyRadius: 110,
   // Ice Slam: a shockwave ring around the boss.
-  slam: { range: 185, radius: 215, damage: 24, cooldown: [2.8, 2.2, 1.6] },
+  slam: { range: 185, radius: 215, damage: 17, cooldown: [3.2, 2.6, 2.0] },
   // Ice Spire: crystals erupt where the player WAS standing.
-  spire: { minRange: 200, maxRange: 640, radius: 80, damage: 30, cooldown: [0, 4, 2.8] }
+  spire: { minRange: 200, maxRange: 640, radius: 80, damage: 21, cooldown: [0, 4.5, 3.2] }
 };
 
 // ABSOLUTE ZERO · FROZEN DOMINION
@@ -76,7 +76,7 @@ const ZERO = {
   chargeTime: 1.5,       // boss stands still, crystals glow, warning circle
   radius: 340,           // shockwave / frozen ground size
   waveTime: 0.45,        // shockwave expands over this long
-  damage: 34,
+  damage: 24,
   groundTime: 5,         // frozen ground lasts this long
   slow: 0.35,            // player is 35% slower on frozen ground
   pillarCount: 3,
@@ -195,6 +195,42 @@ export function createEuropaMonsters(assets, callbacks = {}) {
   }
 
   const bossPhase = b => (b.hp <= BOSS.hp * BOSS.phaseAt[1] ? 2 : b.hp <= BOSS.hp * BOSS.phaseAt[0] ? 1 : 0);
+
+
+  // ROAMING: a monster that is not chasing anyone walks to a nearby spot,
+  // waits a few seconds, then picks another. Returns true while walking.
+  function wander(m, dt) {
+    m.wanderTimer = (m.wanderTimer ?? Math.random() * 5) - dt;
+
+    if (!m.wanderTarget) {
+      if (m.wanderTimer > 0) return false;   // still resting
+
+      const angle = Math.random() * Math.PI * 2;
+      const reach = 160 + Math.random() * 260;
+
+      m.wanderTarget = { x: m.x + Math.cos(angle) * reach, y: m.y + Math.sin(angle) * reach };
+      m.wanderTimer = 9;                      // gives up if it takes too long
+    }
+
+    const dx = m.wanderTarget.x - m.x;
+    const dy = m.wanderTarget.y - m.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance < 24 || m.wanderTimer <= 0) {
+      m.wanderTarget = null;
+      m.wanderTimer = 2 + Math.random() * 5;  // rest before the next walk
+      return false;
+    }
+
+    const speed = SKITTER.walkSpeed * 0.55;
+
+    steer(m, dx / distance * speed, dy / distance * speed, dt);
+
+    // Looks where it is going (so its sight cone moves with it).
+    m.lookAngle = Math.atan2(dy, dx);
+    m.lookTarget = m.lookAngle;
+    return true;
+  }
 
   // ---------- spawning ----------
   function createSkitter(x, y) {
@@ -344,6 +380,8 @@ export function createEuropaMonsters(assets, callbacks = {}) {
 
       steer(s, dx / distance * speed, dy / distance * speed, dt);
       setState(s, running ? 'run' : 'walk');
+    } else if (!s.alerted && wander(s, dt)) {
+      setState(s, 'walk');
     } else {
       steer(s, 0, 0, dt);
       if (Math.hypot(s.vx, s.vy) < 12) setState(s, 'idle');
@@ -1225,6 +1263,7 @@ export function createEuropaMonsters(assets, callbacks = {}) {
     tickRespawns,
     respawn: spawnAll,
     isBossDefeated: () => bossDefeated,
+    lair: { x: BOSS.lairX, y: BOSS.lairY },
     save: () => ({ bossDefeated }),
     load(data) {
       bossDefeated = Boolean(data && data.bossDefeated);

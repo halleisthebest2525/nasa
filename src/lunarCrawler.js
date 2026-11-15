@@ -222,6 +222,42 @@ export function createLunarCrawlers(assets) {
   }
 
   // player = { x, y, damage(amount) }
+
+  // ROAMING: a monster that is not chasing anyone walks to a nearby spot,
+  // waits a few seconds, then picks another. Returns true while walking.
+  function wander(m, dt) {
+    m.wanderTimer = (m.wanderTimer ?? Math.random() * 5) - dt;
+
+    if (!m.wanderTarget) {
+      if (m.wanderTimer > 0) return false;   // still resting
+
+      const angle = Math.random() * Math.PI * 2;
+      const reach = 160 + Math.random() * 260;
+
+      m.wanderTarget = { x: m.x + Math.cos(angle) * reach, y: m.y + Math.sin(angle) * reach };
+      m.wanderTimer = 9;                      // gives up if it takes too long
+    }
+
+    const dx = m.wanderTarget.x - m.x;
+    const dy = m.wanderTarget.y - m.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance < 24 || m.wanderTimer <= 0) {
+      m.wanderTarget = null;
+      m.wanderTimer = 2 + Math.random() * 5;  // rest before the next walk
+      return false;
+    }
+
+    const speed = WALK_SPEED * 0.6;
+
+    steer(m, dx / distance * speed, dy / distance * speed, dt);
+
+    // Looks where it is going (so its sight cone moves with it).
+    m.lookAngle = Math.atan2(dy, dx);
+    m.lookTarget = m.lookAngle;
+    return true;
+  }
+
   function update(dt, player) {
     playerCooldown = Math.max(0, playerCooldown - dt);
     swingTimer = Math.max(0, swingTimer - dt);
@@ -321,6 +357,8 @@ export function createLunarCrawlers(assets) {
             dy / distance * WALK_SPEED,
             dt
           );
+          setState(crawler, 'walk');
+        } else if (!chasing && wander(crawler, dt)) {
           setState(crawler, 'walk');
         } else {
           steer(crawler, 0, 0, dt);

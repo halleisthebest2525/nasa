@@ -15,6 +15,7 @@
 const VOLUME = 0.35;        // same loudness as the menu music
 const FADE_SECONDS = 1.6;   // crossfade time between two tracks
 const QUICK_STOP = { danger: 0.3 };   // these tracks stop almost at once
+const QUICK_START = { danger: 0.25 }; // ...and start at once (together with the "monster appears" sound)
 const STING_VOLUME = 0.5;
 
 export function createMusic() {
@@ -69,8 +70,9 @@ export function createMusic() {
       for (const [name, audio] of Object.entries(players)) {
         const target = name === current ? VOLUME * duck : 0;
         const stopStep = QUICK_STOP[name] ? VOLUME * dt / QUICK_STOP[name] : step;
+        const startStep = QUICK_START[name] ? VOLUME * dt / QUICK_START[name] : step;
         const volume = audio.volume < target
-          ? Math.min(target, audio.volume + step)
+          ? Math.min(target, audio.volume + startStep)
           : Math.max(target, audio.volume - stopStep);
 
         audio.volume = Math.max(0, Math.min(1, volume));

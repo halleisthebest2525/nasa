@@ -24,7 +24,9 @@ export class Survival {
     this.weaponLevel = 0;   // 0 = starting weapon
   }
 
-  updateFuel(dt, moving, boosting, modules = {}) {
+  // moving = the engine is thrusting · boosting = Shift boost
+  // coasting = the ship is drifting with the engine off
+  updateFuel(dt, moving, boosting, modules = {}, coasting = false) {
     this.maxFuel = modules.maxFuel || 100;
 
     const passiveFuel = modules.passiveFuel || 0;
@@ -34,9 +36,11 @@ export class Survival {
       this.fuel + passiveFuel * dt
     );
 
-    if (!moving || this.fuel <= 0) return;
+    if ((!moving && !coasting) || this.fuel <= 0) return;
 
-    const drain = boosting ? 0.70 : 0.30;
+    // Fuel per second: boosting burns the most, thrust less, and just
+    // drifting still costs a little (life support, steering).
+    const drain = moving ? (boosting ? 1.0 : 0.45) : 0.2;
     const efficiency = modules.fuelDrainMultiplier || 1;
 
     this.fuel = Math.max(
@@ -48,8 +52,9 @@ export class Survival {
   updateMoon(dt, running) {
     this.oxygen = Math.max(0, this.oxygen - 0.35 * dt);
 
+    // No oxygen = dying fast: 5 health per second (20 seconds to live).
     if (this.oxygen <= 0) {
-        this.health = Math.max(0, this.health - 0.8 * dt);
+        this.health = Math.max(0, this.health - 5 * dt);
     }
 
     this.updateStamina(dt, running);

@@ -57,6 +57,11 @@ const chestQuest = createChestQuest({
   partsSystem,
   moonSurface,
   getPlanet: () => landedPlanet,
+  // The chest lies next to the boss's lair on worlds that have a boss.
+  getChestSpot(planet) {
+    const lair = { mars: marsMonsters.lair, europa: europaMonsters.lair }[planet];
+    return lair ? { x: lair.x + 210, y: lair.y + 190 } : null;
+  },
   showTransmission: (text, color) => showTransmission(text, color),
 
   // Planet beaten (all modules + chest): Earth calls the player home to
@@ -178,6 +183,7 @@ function currentEnemies() {
 
 // Red screen flash when a crawler hits the player.
 let playerHurtFlash = 0;
+let lastOxygenBeep = 0;   // time of the last low-oxygen beep
 
 // MARTIAL ARTS: the player's only way to fight (no weapons).
 // Skills are learned with scraps in the Martial Arts menu (K).
@@ -203,7 +209,7 @@ const martialArts = createMartialArts({
   },
   // What the player has achieved so far (decides which skills can be learned).
   getProgress: () => ({
-    reachedMars: Boolean(chestQuest.getState().maps.mars),
+    reachedMars: knowsRoute('mars'),
     marsBoss: marsMonsters.isBossDefeated(),
     europaBoss: europaMonsters.isBossDefeated(),
     titanBeaten: chestQuest.isBeaten('titan'),
@@ -249,7 +255,7 @@ function canUseMoonCombat(event) {
   );
 }
 
-// ATTACK: Space or left mouse button = PUNCH. Number keys 1-6 = skills.
+// ATTACK: Space or left mouse button = PUNCH. Number keys 1-5 = skills.
 window.addEventListener('keydown', (event) => {
   if (event.repeat || !canUseMoonCombat(event)) return;
 
@@ -452,7 +458,6 @@ window.addEventListener('blur', () => {
 
 function isMovingOnFoot() {
   return [
-    'w', 'a', 's', 'd',
     'arrowup', 'arrowdown',
     'arrowleft', 'arrowright'
   ].some(key => heldKeys.has(key));
@@ -1824,7 +1829,7 @@ window.addEventListener('keydown', (event) => {
       return body && Math.hypot(body.x - ship.x, body.y - ship.y) <= body.radius + 125;
     });
 
-    if (MAP_SOURCES[nearPlanet] && !chestQuest.getState().maps[nearPlanet]) {
+    if (MAP_SOURCES[nearPlanet] && !knowsRoute(nearPlanet)) {
       // Hidden destinations need the star map from the previous chest.
       showTransmission(
         'NAVIGATION DATA MISSING\n' +
@@ -2314,6 +2319,23 @@ function handleFuelDepletion() {
   showEmergencyFuelMessage();
   saveCurrentGame('Autosave');
 }
+// Do we know the way to this world? Yes if we hold its star map, have
+// completed the world before it, or have already been there. (Checking
+// more than the star map keeps the map marker from ever disappearing.)
+const WORLD_BEFORE = { mars: 'moon', europa: 'mars', titan: 'europa' };
+
+function knowsRoute(id) {
+  const progress = chestQuest.getState();
+
+  return Boolean(
+    progress.maps[id] ||
+    progress.opened[WORLD_BEFORE[id]] ||
+    progress.opened[id] ||
+    planetStates[id] ||
+    (landedOnMoon && landedPlanet === id)
+  );
+}
+
 // Where each hidden destination's star map comes from.
 const MAP_SOURCES = { mars: 'THE MOON', europa: 'MARS', titan: 'EUROPA' };
 
@@ -2371,7 +2393,7 @@ let monstersHunting = false;
 // when it is on, otherwise the small glow around them (plus a margin).
 // Out of sight -> the normal music comes back at once.
 const MONSTER_VIEW_MARGIN = 60;
-const BOSS_VIEW_MARGIN = 200;     // the boss is huge: it is seen from farther
+const BOSS_VIEW_MARGIN = 170;     // the boss is huge: its body is seen from farther
 
 function monstersAreHunting() {
   const enemies = currentEnemies();
@@ -2781,7 +2803,7 @@ window.NasarethGame = {
       scraps: moonSurface.scraps.credits,
       scrapsOnPlanet: moonSurface.scraps.items.length,
       skills: Object.fromEntries(
-        ['punch', 'kick', 'flyingKick', 'energyWave', 'advancedWave', 'finisher']
+        ['punch', 'flyingKick', 'energyWave', 'advancedWave', 'finisher']
           .map(id => [id, `${martialArts.status(id)} cd ${martialArts.cooldownOf(id).toFixed(1)}`])
       ),
       player: { x: Math.round(moonSurface.x), y: Math.round(moonSurface.y) }
@@ -2833,7 +2855,7 @@ createAdminMode({
   },
   unlockSkills() {
     martialArts.unlockAll();
-    return 'ALL 6 MARTIAL ARTS UNLOCKED (KEYS 1-6)';
+    return 'ALL MARTIAL ARTS UNLOCKED (KEYS 1-5)';
   },
   gotoNextModule() {
     if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
@@ -3264,20 +3286,20 @@ function frame(time) {
         }
 
         if (gameMode === 'driving') {
-          const forwardPressed =
-            heldKeys.has('w') || heldKeys.has('arrowup');
-
-          const reversePressed =
-            heldKeys.has('s') || heldKeys.has('arrowdown');
+          // Arrow keys only (WASD is switched off).
+          const forwardPressed = heldKeys.has('arrowup');
+          const reversePressed = heldKeys.has('arrowdown');
 
           const engineActive = forwardPressed || reversePressed;
           const boostRequested = forwardPressed && heldKeys.has('shift');
 
+          // Drifting with the engine off still uses a little fuel.
           survival.updateFuel(
             dt,
             engineActive,
             boostRequested,
-            moduleStats
+            moduleStats,
+            ship.speed > 5
           );
 
           handleFuelDepletion();
@@ -3386,7 +3408,11 @@ function frame(time) {
     }
 
     // Mars appears on the space map only after the Mars star map is found.
-    world.discovered = chestQuest.getState().maps;
+    world.discovered = {
+      mars: knowsRoute('mars'),
+      europa: knowsRoute('europa'),
+      titan: knowsRoute('titan')
+    };
 
     drawWorld(
       pixelCtx,
@@ -3415,6 +3441,42 @@ function frame(time) {
     if (playerHurtFlash > 0) {
       pixelCtx.fillStyle = `rgba(160, 20, 20, ${0.35 * playerHurtFlash})`;
       pixelCtx.fillRect(0, 0, width, height);
+    }
+
+    // OXYGEN WARNING: below 25% a flashing sign; at 0% the screen pulses
+    // red and health falls fast. A beep repeats while it is showing.
+    if (survival.oxygen < 25 && !gameOver) {
+      const empty = survival.oxygen <= 0;
+      const pulse = 0.5 + 0.5 * Math.sin(time / (empty ? 110 : 220));
+
+      if (empty) {
+        pixelCtx.fillStyle = `rgba(190, 20, 20, ${0.16 + 0.2 * pulse})`;
+        pixelCtx.fillRect(0, 0, width, height);
+      }
+
+      const text = empty
+        ? '⚠ NO OXYGEN · HEALTH FALLING FAST · GET TO THE SHIP'
+        : `⚠ LOW OXYGEN ${Math.ceil(survival.oxygen)}% · RETURN TO THE SHIP (E)`;
+
+      pixelCtx.save();
+      pixelCtx.textAlign = 'center';
+      pixelCtx.font = 'bold 15px monospace';
+
+      const boxWidth = pixelCtx.measureText(text).width + 36;
+
+      pixelCtx.fillStyle = `rgba(${empty ? '120, 0, 0' : '70, 40, 0'}, ${0.75 + 0.2 * pulse})`;
+      pixelCtx.fillRect(width / 2 - boxWidth / 2, 214, boxWidth, 30);
+      pixelCtx.strokeStyle = empty ? '#ff5a4a' : '#ffb04a';
+      pixelCtx.lineWidth = 2;
+      pixelCtx.strokeRect(width / 2 - boxWidth / 2, 214, boxWidth, 30);
+      pixelCtx.fillStyle = pulse > 0.35 ? '#ffffff' : (empty ? '#ff9a8a' : '#ffd79a');
+      pixelCtx.fillText(text, width / 2, 234);
+      pixelCtx.restore();
+
+      if (!paused && time - lastOxygenBeep > (empty ? 600 : 1600)) {
+        lastOxygenBeep = time;
+        sfx.deny();
+      }
     }
   } else {
     onFoot.draw(pixelCtx, width, height);

@@ -88,10 +88,11 @@ export class OnFoot {
     let dx = 0;
     let dy = 0;
 
-    if (this.keys.has('w') || this.keys.has('arrowup')) dy -= 1;
-    if (this.keys.has('s') || this.keys.has('arrowdown')) dy += 1;
-    if (this.keys.has('a') || this.keys.has('arrowleft')) dx -= 1;
-    if (this.keys.has('d') || this.keys.has('arrowright')) dx += 1;
+    // Arrow keys only (WASD is switched off).
+    if (this.keys.has('arrowup')) dy -= 1;
+    if (this.keys.has('arrowdown')) dy += 1;
+    if (this.keys.has('arrowleft')) dx -= 1;
+    if (this.keys.has('arrowright')) dx += 1;
 
     this.moving = dx !== 0 || dy !== 0;
 

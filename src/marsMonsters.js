@@ -51,14 +51,14 @@ const BOSS = {
   lairX: -2800,          // guards the top-left of Mars
   lairY: -2600,
   scale: 1.35,           // 175x113 frame -> ~236 px wide
-  hp: 60,
+  hp: 38,                // was 60: too hard
   phase2At: 0.5,         // below 50% HP: enraged
   moveSpeed: [60, 85],   // phase 1, phase 2
   aggroRange: 520,
   leashRange: 1000,      // won't follow you farther than this from its lair
   bodyRadius: 70,
-  slam: { range: 135, radius: 145, damage: 22, cooldown: [2.6, 1.7] },
-  eruption: { minRange: 170, maxRange: 540, radius: 75, damage: 28, cooldown: 4 }
+  slam: { range: 135, radius: 145, damage: 16, cooldown: [3.0, 2.2] },
+  eruption: { minRange: 170, maxRange: 540, radius: 75, damage: 20, cooldown: 5 }
 };
 
 const BOSS_ANIMS = {
@@ -159,6 +159,42 @@ export function createMarsMonsters(assets, callbacks = {}) {
     }
 
     return { x, y };
+  }
+
+
+  // ROAMING: a monster that is not chasing anyone walks to a nearby spot,
+  // waits a few seconds, then picks another. Returns true while walking.
+  function wander(m, dt) {
+    m.wanderTimer = (m.wanderTimer ?? Math.random() * 5) - dt;
+
+    if (!m.wanderTarget) {
+      if (m.wanderTimer > 0) return false;   // still resting
+
+      const angle = Math.random() * Math.PI * 2;
+      const reach = 160 + Math.random() * 260;
+
+      m.wanderTarget = { x: m.x + Math.cos(angle) * reach, y: m.y + Math.sin(angle) * reach };
+      m.wanderTimer = 9;                      // gives up if it takes too long
+    }
+
+    const dx = m.wanderTarget.x - m.x;
+    const dy = m.wanderTarget.y - m.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance < 24 || m.wanderTimer <= 0) {
+      m.wanderTarget = null;
+      m.wanderTimer = 2 + Math.random() * 5;  // rest before the next walk
+      return false;
+    }
+
+    const speed = STALKER.walkSpeed * 0.55;
+
+    steer(m, dx / distance * speed, dy / distance * speed, dt);
+
+    // Looks where it is going (so its sight cone moves with it).
+    m.lookAngle = Math.atan2(dy, dx);
+    m.lookTarget = m.lookAngle;
+    return true;
   }
 
   // ---------- spawning ----------
@@ -304,6 +340,8 @@ export function createMarsMonsters(assets, callbacks = {}) {
 
       steer(s, dx / distance * speed, dy / distance * speed, dt);
       setState(s, running ? 'run' : 'walk');
+    } else if (!s.alerted && wander(s, dt)) {
+      setState(s, 'walk');
     } else {
       steer(s, 0, 0, dt);
       if (Math.hypot(s.vx, s.vy) < 12) setState(s, 'idle');
@@ -778,6 +816,7 @@ export function createMarsMonsters(assets, callbacks = {}) {
     tickRespawns,
     respawn: spawnAll,
     isBossDefeated: () => bossDefeated,
+    lair: { x: BOSS.lairX, y: BOSS.lairY },
     save: () => ({ bossDefeated }),
     load(data) {
       bossDefeated = Boolean(data && data.bossDefeated);

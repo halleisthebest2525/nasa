@@ -17,8 +17,8 @@ const SECTIONS = [
   {
     title: 'FLYING (IN SPACE)',
     lines: [
-      ['W / S', 'thrust forward / backward'],
-      ['A / D', 'turn'],
+      ['↑ / ↓', 'thrust forward / backward'],
+      ['← / →', 'turn'],
       ['SHIFT', 'boost (uses more fuel)'],
       ['SPACE', 'brake (there is no air: the ship keeps drifting)'],
       ['M', 'system map'],
@@ -29,11 +29,11 @@ const SECTIONS = [
   {
     title: 'ON A WORLD',
     lines: [
-      ['WASD', 'walk'],
+      ['ARROW KEYS', 'walk'],
       ['SHIFT', 'run (uses stamina)'],
       ['F', 'flashlight'],
       ['Q', 'metal detector (beeps near scrap, modules and the chest)'],
-      ['M', 'surface map (red dots are monsters)'],
+      ['M', 'surface map'],
       ['B', 'inventory, ship parts and stats'],
       ['H', 'use a med kit'],
       ['E', 'enter your ship (refills suit oxygen)']
@@ -43,7 +43,7 @@ const SECTIONS = [
     title: 'FIGHTING · MARTIAL ARTS',
     lines: [
       ['SPACE / CLICK', 'PUNCH'],
-      ['1 – 6', 'your other skills'],
+      ['1 – 5', 'your other skills'],
       ['K', 'Martial Arts menu: learn new skills with scraps'],
       'New skills unlock as you reach new worlds and defeat bosses.',
       'Bosses show a warning circle before big attacks. Get out of it.'
@@ -62,6 +62,8 @@ const SECTIONS = [
     title: 'STAYING ALIVE',
     lines: [
       'Watch FUEL, OXYGEN, HEALTH and HULL (bottom left).',
+      'SUIT OXYGEN runs out on the surface. At 0 you lose health very fast: get back in the ship.',
+      'The ship uses a little fuel even when it is only drifting.',
       'At 2:00 AM you fall asleep. Sleep in the ship to stay safe.',
       ['P', 'planet log (progress and module odds)'],
       ['ESC', 'pause · save'],
@@ -75,7 +77,7 @@ export function createHowToPlay() {
 
   button.textContent = '? HELP (F1)';
   button.style.cssText = `
-    position:fixed; left:72px; bottom:8px; z-index:300; font:11px monospace;
+    position:fixed; left:30px; top:344px; z-index:21; font:11px monospace;
     background:#10202c; color:#bfe6ff; border:1px solid #6fb6e6; padding:3px 8px;
     cursor:pointer; opacity:.85;
   `;

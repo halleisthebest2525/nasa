@@ -23,6 +23,7 @@ import { createEuropaMonsters } from './europaMonsters.js';
 import { createTitanMonsters } from './titanMonsters.js';
 import { createUmbrielMonsters } from './umbrielMonsters.js';
 import { createEarthBase } from './earthBase.js';
+import { playOutro } from '../NASARETH_FINAL_CUTSCENE/cutscene.js';
 import { createPlanetLog } from './planetLog.js';
 import { adminFlags, createAdminMode } from './adminMode.js'; // TEMPORARY
 import { createMusic } from './music.js';
@@ -39,6 +40,7 @@ const ctx = canvas.getContext('2d');
 const ship = new Ship();
 const world = new World();
 const warpTravel = createWarpTravel();
+let outroPlayed = false;
 
 // Capture before the individual gameplay listeners (including module controls).
 for (const type of ['keydown', 'keyup', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'wheel']) {
@@ -1314,6 +1316,17 @@ window.addEventListener('nasareth:modules-changed', () => {
   // All modules on the Moon collected -> chest detector (Moon only).
   if (PLANETS[landedPlanet].chestQuest) {
     chestQuest.checkModules();
+  }
+
+  // Fitting the last legendary module at Earth completes the spacecraft.
+  const installed = partsSystem.getInstalled();
+  if (!outroPlayed && earthBase.isOpen() &&
+      partsSystem.types().every(type => installed[type] === 'legendary')) {
+    outroPlayed = true;
+    playOutro().catch(error => {
+      outroPlayed = false;
+      console.error('Could not play the final cutscene:', error);
+    });
   }
 });
 
@@ -2784,6 +2797,7 @@ function createSnapshot() {
     gameMode: sleeping ? modeBeforeSleep : gameMode,
     gameMinutes: sleeping ? 7 * 60 : gameMinutes,
     pendingSleepRecovery: sleeping,
+    outroPlayed,
     hull,
     landedOnMoon,
     landedPlanet,
@@ -2878,6 +2892,7 @@ function loadPendingSave() {
 
   try {
     const save = JSON.parse(pending);
+    outroPlayed = Boolean(save.outroPlayed);
 
     applySnapshot(save, {
       ship,

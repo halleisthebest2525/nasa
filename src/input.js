@@ -23,3 +23,4 @@ window.addEventListener('keydown', event => {
 window.addEventListener('keyup', event => down.delete(event.key.toLowerCase()));
 window.addEventListener('blur', () => down.clear());
 export const isDown = (...keys) => keys.some(key => down.has(key));
+export const clearInput = () => down.clear();

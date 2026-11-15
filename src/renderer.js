@@ -882,13 +882,21 @@ function drawAsteroid(ctx, x, y, asteroid) {
   ctx.restore();
 }
 
-function drawShip(ctx, ship, width, height, sprite) {
+export function drawTravelDestination(ctx, id, x, y, radius) {
+  if (id === 'earth') drawEarth(ctx, x, y, radius);
+  else drawMoon(ctx, x, y, radius, {
+    moon: MOON_LOOK, mars: MARS_LOOK, europa: EUROPA_LOOK,
+    titan: TITAN_LOOK, umbriel: UMBRIEL_LOOK
+  }[id] || MOON_LOOK);
+}
+
+export function drawShip(ctx, ship, width, height, sprite) {
   ctx.save();
 
   ctx.translate(width / 2, height / 2);
   ctx.rotate(ship.angle + Math.PI / 2);
 
-  if (Math.abs(ship.speed) > 5 || ship.boosting) {
+  if (ship.enginePower > 0 || Math.abs(ship.speed) > 5 || ship.boosting) {
     drawEngineFlame(ctx, ship);
   }
 
@@ -918,14 +926,16 @@ function drawShip(ctx, ship, width, height, sprite) {
 }
 
 function drawEngineFlame(ctx, ship) {
-  const power = ship.boosting ? 1 : Math.min(
+  ctx.save();
+  const power = ship.enginePower ?? (ship.boosting ? 1 : Math.min(
     Math.abs(ship.speed) / 120,
     0.8
-  );
+  ));
 
-  const flicker = 0.75 + Math.random() * 0.35;
+  const flicker = ship.enginePower !== undefined ? 1 : 0.75 + Math.random() * 0.35;
   const length = (9 + power * 13) * flicker;
 
+  ctx.globalAlpha *= ship.enginePower !== undefined ? power : 1;
   ctx.fillStyle = '#a65e38';
   ctx.fillRect(-4, 17, 8, length);
 
@@ -934,6 +944,7 @@ function drawEngineFlame(ctx, ship) {
 
   ctx.fillStyle = '#e2bd83';
   ctx.fillRect(-1, 17, 2, length * 0.3);
+  ctx.restore();
 }
 
 function drawFallbackShip(ctx) {

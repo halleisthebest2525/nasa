@@ -33,16 +33,7 @@ export function createWarpMenu(game) {
     background:rgba(0,4,12,.84); font-family:monospace; color:#d5e4ee;
   `;
 
-  // White flash when the ship jumps.
-  const flash = document.createElement('div');
-
-  flash.style.cssText = `
-    position:fixed; inset:0; z-index:240; pointer-events:none; opacity:0;
-    background:radial-gradient(circle, #ffffff 0%, #bfe6ff 45%, #3a7bff 100%);
-    transition:opacity .9s ease-out;
-  `;
-
-  document.body.append(button, screen, flash);
+  document.body.append(button, screen);
 
   let open = false;
   let buttonShown = false;
@@ -90,19 +81,9 @@ export function createWarpMenu(game) {
         if (item.disabled) return;
 
         close();
-        showFlash();
         game.onWarp(item.dataset.id);
       });
     }
-  }
-
-  function showFlash() {
-    // Jump to full white at once, then fade out slowly.
-    flash.style.transition = 'none';
-    flash.style.opacity = '1';
-    void flash.offsetWidth;   // apply the line above before fading
-    flash.style.transition = 'opacity .9s ease-out';
-    flash.style.opacity = '0';
   }
 
   function toggle() {
@@ -131,7 +112,6 @@ export function createWarpMenu(game) {
     toggle,
     close,
     isOpen: () => open,
-    flash: showFlash,
 
     // Called every frame: shows / hides the WARP button.
     refresh(visible) {

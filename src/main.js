@@ -9,7 +9,8 @@ import { loadAssets } from './assets.js';
 import { Survival } from './survival.js';
 import { attachPartsSystem } from './partsSystem.js';
 import { readSaves, writeSave, removeSave, applySnapshot } from './saveSystem.js';
-import { isTypingTarget } from './input.js';
+import { isTypingTarget, clearInput } from './input.js';
+import { createWarpTravel } from './warpTravel.js';
 import { createSpaceBackground } from './spaceBackground.js';
 import { runGaugeChallenge, isGaugeChallengeActive } from './gaugeChallenge.js';
 import { createStatsSection } from './inventoryStats.js';
@@ -36,6 +37,16 @@ const ctx = canvas.getContext('2d');
 
 const ship = new Ship();
 const world = new World();
+const warpTravel = createWarpTravel();
+
+// Capture before the individual gameplay listeners (including module controls).
+for (const type of ['keydown', 'keyup', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'wheel']) {
+  window.addEventListener(type, event => {
+    if (!warpTravel.isActive()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, { capture: true, passive: false });
+}
 
 const assets = await loadAssets();
 
@@ -105,7 +116,6 @@ const earthBase = createEarthBase({
   // Checklist of what has been done + what to do next.
   getMission: () => missionStatus(),
   onWarp(id) {
-    warpMenu.flash();
     warpTo(id);
   }
 });
@@ -509,6 +519,9 @@ const pixelCtx = pixelCanvas.getContext('2d');
 let width = 0;
 let height = 0;
 let previous = 0;
+document.addEventListener('visibilitychange', () => {
+  if (warpTravel.isActive()) previous = 0;
+});
 
 let shake = 0;
 let impactFlash = 0;
@@ -2787,6 +2800,8 @@ function createSnapshot() {
 }
 
 function saveCurrentGame(name = 'Expedition') {
+  // Never persist an intermediate position inside the travel sequence.
+  if (warpTravel.isActive()) return null;
   let saved;
   try {
     saved = writeSave(name, createSnapshot());
@@ -2921,6 +2936,7 @@ window.NasarethGame = {
 
   pause() {
     if (
+      warpTravel.isActive() ||
       gameOver ||
       computerOpen ||
       sleeping ||
@@ -3075,6 +3091,7 @@ const completedWorlds = () => WARP_WORLDS.filter(id => chestQuest.isBeaten(id));
 // The drive works once the first world is completed.
 function warpAvailable() {
   return (
+    !warpTravel.isActive() &&
     launchComplete &&
     !gameOver &&
     !sleeping &&
@@ -3098,10 +3115,11 @@ function warpDestinations() {
 }
 
 function warpTo(id) {
-  if (id !== 'earth' && !completedWorlds().includes(id)) return;
+  if (!warpAvailable() || (id !== 'earth' && !completedWorlds().includes(id)) || !world[id]) return;
 
   // Leave wherever we are (surface, ship interior or open space).
   heldKeys.clear();
+  clearInput();
   onFoot.clearKeys();
   moonSurface.clearKeys();
   moonSurface.scraps.closeInventory();
@@ -3109,6 +3127,7 @@ function warpTo(id) {
 
   if (computerOpen) closeComputer();
   if (earthBase.isOpen()) earthBase.close();
+  warpMenu.close();
 
   landedOnMoon = false;
   gameMode = 'driving';
@@ -3118,29 +3137,35 @@ function warpTo(id) {
   ship.vx = 0;
   ship.vy = 0;
   ship.boosting = false;
-  ship.angle = -Math.PI / 2;
-
-  sfx.bigWave();
-
-  if (id === 'earth') {
-    // Straight into the shipyard: no landing needed.
-    ship.x = world.earth.x;
-    ship.y = world.earth.y - world.earth.radius - 45;
-    earthBase.open();
-    return;
-  }
-
   const body = world[id];
-
-  ship.x = body.x + body.radius + 170;
-  ship.y = body.y;
-
-  showTransmission(
-    'WARP COMPLETE\n' +
-    `IN ORBIT AROUND ${PLANETS[id].name}\n` +
-    'PRESS E TO LAND · OR FLY ON FROM HERE',
-    '#8fc3e8'
-  );
+  const departure = ['earth', ...WARP_WORLDS]
+    .map(key => ({ id: key, body: world[key] }))
+    .filter(item => item.body && Math.hypot(item.body.x - ship.x, item.body.y - ship.y) < item.body.radius + 800)
+    .sort((a, b) => Math.hypot(a.body.x - ship.x, a.body.y - ship.y) - Math.hypot(b.body.x - ship.x, b.body.y - ship.y))[0];
+  const to = id === 'earth'
+    ? { x: body.x, y: body.y - body.radius - 45 }
+    : { x: body.x - Math.cos(ship.angle) * (body.radius + 170),
+        y: body.y - Math.sin(ship.angle) * (body.radius + 170) };
+  warpTravel.start({
+    id, ship, world, sprite: shipSprite, departure,
+    from: { x: ship.x, y: ship.y }, to,
+    images: [shipSprite, assets.space_starfield, assets.space_stars_overlay,
+      world.sprites.jupiter, world.sprites.saturn, world.sprites.uranus],
+    scenery: [world.sprites.jupiter, world.sprites.saturn, world.sprites.uranus],
+    onComplete() {
+      heldKeys.clear();
+      clearInput();
+      onFoot.clearKeys();
+      moonSurface.clearKeys();
+      // Retain the existing arrival scenes: Earth docks; other worlds orbit.
+      if (id === 'earth') earthBase.open();
+      else showTransmission(
+        'JOURNEY COMPLETE\n' +
+        `IN ORBIT AROUND ${PLANETS[id].name}\n` +
+        'PRESS E TO LAND · OR FLY ON FROM HERE', '#8fc3e8'
+      );
+    }
+  });
 }
 
 const warpMenu = createWarpMenu({
@@ -3368,12 +3393,16 @@ function updateEnvironmentPanel() {
 
 // MAIN LOOP
 function frame(time) {
+  const travelDt = previous ? Math.max(0, (time - previous) / 1000) : 0;
   const dt = Math.min(
     (time - previous) / 1000 || 0,
     0.033
   );
 
   previous = time;
+
+  const travelingThisFrame = warpTravel.isActive();
+  if (travelingThisFrame) warpTravel.update(document.hidden ? 0 : travelDt);
 
   updateMusic(dt);
 
@@ -3384,7 +3413,7 @@ function frame(time) {
   );
 
   // ADMIN MODE (temporary): god mode keeps everything full.
-  if (adminFlags.god && !gameOver) {
+  if (adminFlags.god && !gameOver && !travelingThisFrame) {
     hull = hullMax;
     survival.health = 100;
     survival.fuel = survival.maxFuel;
@@ -3400,7 +3429,7 @@ function frame(time) {
   }
 
   // The world is frozen while the launch / landing gauge is on screen.
-  if (!gameOver && !paused && !isGaugeChallengeActive() && !earthBase.isOpen() && !planetLog.isOpen() && !skillMenu.isOpen() && !warpMenu.isOpen() && !howToPlay.isOpen()) {
+  if (!travelingThisFrame && !gameOver && !paused && !isGaugeChallengeActive() && !earthBase.isOpen() && !planetLog.isOpen() && !skillMenu.isOpen() && !warpMenu.isOpen() && !howToPlay.isOpen()) {
     if (sleeping) {
       sleepTimer -= dt;
 
@@ -3538,7 +3567,7 @@ function frame(time) {
     }
   }
 
-  if (!paused && !gameOver) {
+  if (!travelingThisFrame && !paused && !gameOver) {
     autosaveAccumulator += dt;
 
     if (autosaveAccumulator >= 60) {
@@ -3553,7 +3582,9 @@ function frame(time) {
   playerHurtFlash = Math.max(0, playerHurtFlash - dt * 2.5);
   drawBackground(pixelCtx, width, height);
 
-  if (gameMode === 'driving') {
+  if (warpTravel.isActive()) {
+    warpTravel.draw(pixelCtx, width, height, spaceBackground, dt);
+  } else if (gameMode === 'driving') {
     // Pixel-art parallax star textures (behind everything else).
     // Frozen while paused or after game over.
     const texturedBackground = spaceBackground.draw(

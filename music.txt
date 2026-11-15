@@ -7,6 +7,7 @@ mars=./audio/Mars.mp3
 europa=./audio/Europa.mp3
 titan=./audio/Titan.mp3
 uranus=./audio/Uranus.mp3
+umbriel=./audio/Uranus.mp3
 shop=./audio/Shopping shop.mp3
 danger=./audio/Monster.mp3
 sting=./audio/monster-appears.mp3

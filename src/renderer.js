@@ -42,6 +42,7 @@ export function drawWorld(
 
   drawJupiterBackdrop(ctx, world, ship, width, height);
   drawSaturnBackdrop(ctx, world, ship, width, height);
+  drawSaturnBackdrop(ctx, world, ship, width, height, world.sprites?.uranus, world.uranus, world.umbriel);
 
   drawWorldObjects(objectCtx, world, ship, width, height, texturedBackground);
 
@@ -85,7 +86,7 @@ export function drawWorld(
   drawShip(ctx, ship, width, height, sprite);
 
   // Landing prompt near the Moon or Mars.
-  for (const body of [world.earth, world.moon, world.mars, world.europa, world.titan]) {
+  for (const body of [world.earth, world.moon, world.mars, world.europa, world.titan, world.umbriel]) {
     if (!body) continue;
 
     if (Math.hypot(body.x - ship.x, body.y - ship.y) <= body.radius + 125) {
@@ -102,6 +103,7 @@ export function drawWorld(
     if (found.mars) markers.push({ body: world.mars, color: '#d0704a', label: 'MARS' });
     if (found.europa) markers.push({ body: world.europa, color: '#bfe0ee', label: 'EUROPA' });
     if (found.titan) markers.push({ body: world.titan, color: '#e0b060', label: 'TITAN' });
+    if (found.umbriel) markers.push({ body: world.umbriel, color: '#9fb6c4', label: 'UMBRIEL' });
 
     drawMinimap(ctx, ship, world.moon, width, height, world.earth, markers);
   }
@@ -210,7 +212,7 @@ function drawWorldObjects(ctx, world, ship, width, height, texturedBackground) {
   }
 
   // Europa and Titan (same planet drawing, their own colours).
-  for (const [body, look] of [[world.europa, EUROPA_LOOK], [world.titan, TITAN_LOOK]]) {
+  for (const [body, look] of [[world.europa, EUROPA_LOOK], [world.titan, TITAN_LOOK], [world.umbriel, UMBRIEL_LOOK]]) {
     if (!body) continue;
 
     const dx = body.x - ship.x;
@@ -331,6 +333,19 @@ const EUROPA_LOOK = {
   name: 'EUROPA'
 };
 
+const UMBRIEL_LOOK = {
+  glow: 'rgba(120, 190, 210, 0.4)',
+  base: '#5d666e',
+  light: '#a3b0ba',
+  mid: '#59626a',
+  dark: '#1f2428',
+  crater: 'rgba(15, 18, 22, 0.5)',
+  rim: 'rgba(190, 210, 225, 0.25)',
+  edge: 'rgba(140, 200, 220, 0.4)',
+  label: '#c8d6e0',
+  name: 'UMBRIEL'
+};
+
 const TITAN_LOOK = {
   glow: 'rgba(235, 170, 70, 0.5)',
   base: '#c8963f',
@@ -374,13 +389,15 @@ function drawJupiterBackdrop(ctx, world, ship, width, height) {
 
 // SATURN BACKDROP: the same idea behind Titan (the picture is wider than
 // it is tall because of the rings, so its own shape is kept).
-function drawSaturnBackdrop(ctx, world, ship, width, height) {
-  const image = world.sprites?.saturn;
-  const saturn = world.saturn;
+// The same function draws Uranus behind Umbriel (pass its image, spot
+// and the moon it belongs to).
+function drawSaturnBackdrop(
+  ctx, world, ship, width, height,
+  image = world.sprites?.saturn, saturn = world.saturn, moon = world.titan
+) {
+  if (!image || !saturn || !moon || !image.naturalWidth) return;
 
-  if (!image || !saturn || !world.titan || !image.naturalWidth) return;
-
-  const distance = Math.hypot(world.titan.x - ship.x, world.titan.y - ship.y);
+  const distance = Math.hypot(moon.x - ship.x, moon.y - ship.y);
   const alpha = Math.max(0, Math.min(1, (6500 - distance) / 2500));
 
   if (alpha <= 0) return;
@@ -601,7 +618,7 @@ const MINIMAP_GRID = 2500;
 
 function drawMinimap(ctx, ship, moon, width, height, earth = null, markers = []) {
   const panelWidth = 220;
-  const panelHeight = 250;
+  const panelHeight = 263;
   const panelX = width - panelWidth - 25;
   const panelY = height - panelHeight - 45;
 
@@ -784,7 +801,8 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null, markers = [])
     ['MARS', colorOf('MARS'), 164, 0, has('MARS')],
     ['EUROPA', colorOf('EUROPA'), 19, 1, has('EUROPA')],
     ['TITAN', colorOf('TITAN'), 84, 1, has('TITAN')],
-    ['BELT', 'rgba(190, 170, 140, 0.8)', 142, 1, true]
+    ['UMBRIEL', colorOf('UMBRIEL'), 142, 1, has('UMBRIEL')],
+    ['BELT', 'rgba(190, 170, 140, 0.8)', 19, 2, true]
   ];
 
   for (const [label, color, offset, row, visible] of legend) {
@@ -804,7 +822,7 @@ function drawMinimap(ctx, ship, moon, width, height, earth = null, markers = [])
   ctx.fillText(
     `MOON ${directions[directionIndex]} · ${Math.round(distance).toLocaleString()}`,
     panelX + 14,
-    panelY + 243
+    panelY + 256
   );
 
   ctx.restore();

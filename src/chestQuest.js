@@ -18,7 +18,8 @@ export const CHEST_REWARDS = {
   moon: { map: 'mars', name: 'MARS' },
   mars: { map: 'europa', name: 'EUROPA (MOON OF JUPITER)' },
   europa: { map: 'titan', name: 'TITAN (MOON OF SATURN)' },
-  titan: { map: 'umbriel', name: 'URANUS (MOON UMBRIEL)' }
+  titan: { map: 'umbriel', name: 'URANUS (MOON UMBRIEL)' },
+  umbriel: { map: 'neptune', name: 'NEPTUNE' }
 };
 
 // game = { partsSystem, moonSurface, getPlanet(), showTransmission(text, color), onPlanetBeaten(planet) }

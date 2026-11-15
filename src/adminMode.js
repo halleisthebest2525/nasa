@@ -40,13 +40,14 @@ export function createAdminMode(game) {
     ['GO TO NEXT MODULE (on planet)', () => game.gotoNextModule()],
     ['COLLECT ALL MODULES (on planet)', () => game.collectAllModules()],
     ['GO TO CHEST (on planet)', () => game.gotoChest()],
-    ['GO TO BOSS (Mars / Europa)', () => game.gotoBoss()],
+    ['GO TO BOSS (Mars / Europa / Titan)', () => game.gotoBoss()],
     ['FLY TO EARTH', () => game.flyTo('earth')],
     ['FLY TO MOON', () => game.flyTo('moon')],
     ['FLY TO MARS', () => game.flyTo('mars')],
     ['FLY TO BELT (inner edge)', () => game.flyTo('belt')],
     ['FLY TO EUROPA', () => game.flyTo('europa')],
     ['FLY TO TITAN', () => game.flyTo('titan')],
+    ['FLY TO UMBRIEL', () => game.flyTo('umbriel')],
     ['SET TIME TO 1:55 AM (sleep test)', () => game.setTime(115)]
   ];
 

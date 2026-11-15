@@ -179,16 +179,32 @@ export class World {
       width: 1150
     };
 
+    // UMBRIEL: moon of Uranus, straight LEFT of Titan (the same distance
+    // again). Needs the Uranus star map from the Titan chest.
+    this.umbriel = {
+      x: this.titan.x - 6500,
+      y: this.titan.y,
+      radius: 160,
+      name: 'UMBRIEL'
+    };
+
+    // Uranus: a giant backdrop next to Umbriel (like Jupiter and Saturn).
+    this.uranus = {
+      x: this.umbriel.x - 950,
+      y: this.umbriel.y - 500,
+      width: 760
+    };
+
     // OUTER SYSTEM: loose asteroids past the belt, in the region the
     // player flies through (around Europa and Titan).
-    const landingSpots = [this.europa, this.titan];
+    const landingSpots = [this.europa, this.titan, this.umbriel];
 
     for (let i = 0; i < CONFIG.outerAsteroidCount; i++) {
       let x = 0;
       let y = 0;
 
       for (let tries = 0; tries < 60; tries++) {
-        x = random(-43000, -15000);
+        x = random(-46000, -15000);
         y = random(-36000, -12000);
 
         const clear =

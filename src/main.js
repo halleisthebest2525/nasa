@@ -19,6 +19,7 @@ import { createChestQuest } from './chestQuest.js';
 import { PLANETS } from './planets.js';
 import { createMarsMonsters } from './marsMonsters.js';
 import { createEuropaMonsters } from './europaMonsters.js';
+import { createTitanMonsters } from './titanMonsters.js';
 import { createEarthBase } from './earthBase.js';
 import { createPlanetLog } from './planetLog.js';
 import { adminFlags, createAdminMode } from './adminMode.js'; // TEMPORARY
@@ -43,7 +44,8 @@ const onFoot = new OnFoot(assets);
 world.sprites = {
   asteroids: Array.from({ length: 16 }, (_, i) => assets[`asteroid_${String(i + 1).padStart(2, '0')}`]),
   jupiter: assets.jupiter_backdrop,
-  saturn: assets.saturn_backdrop
+  saturn: assets.saturn_backdrop,
+  uranus: assets.uranus_backdrop
 };
 
 const moonSurface = new MoonSurface(assets);
@@ -59,7 +61,7 @@ const chestQuest = createChestQuest({
   getPlanet: () => landedPlanet,
   // The chest lies next to the boss's lair on worlds that have a boss.
   getChestSpot(planet) {
-    const lair = { mars: marsMonsters.lair, europa: europaMonsters.lair }[planet];
+    const lair = { mars: marsMonsters.lair, europa: europaMonsters.lair, titan: titanMonsters.lair }[planet];
     return lair ? { x: lair.x + 210, y: lair.y + 190 } : null;
   },
   showTransmission: (text, color) => showTransmission(text, color),
@@ -176,8 +178,35 @@ const europaMonsters = createEuropaMonsters(assets, {
 // Legendary modules only drop on Europa after the boss is defeated.
 partsSystem.setLockedRarities('europa', ['legendary']);
 
+// TITAN: Methane Crawlers and the Nitrogen Wraith.
+const titanMonsters = createTitanMonsters(assets, {
+  onBossDefeated(x, y) {
+    // The strongest Titan item: a guaranteed LEGENDARY module where it fell.
+    partsSystem.addRewardPart(x, y, 'legendary');
+    partsSystem.setLockedRarities('titan', []);
+
+    showTransmission(
+      'NITROGEN WRAITH DISSIPATED\n' +
+      'A LEGENDARY MODULE LIES WHERE IT FELL\n' +
+      'LEGENDARY SALVAGE NOW APPEARS ON TITAN',
+      '#c9b0ff'
+    );
+  },
+  onBossPhase(phase) {
+    showMoonMessage(phase === 2
+      ? 'PHASE 2 · CYCLONIC INSTABILITY · IT CAN PULL YOU IN AND TELEPORT'
+      : 'PHASE 3 · ATMOSPHERIC COLLAPSE · WATCH FOR THE BIG CIRCLE');
+  },
+  onCollapse() {
+    showMoonMessage('ATMOSPHERIC COLLAPSE · RUN OUT OF THE CIRCLE');
+  }
+});
+
+// Legendary modules only drop on Titan after the boss is defeated.
+partsSystem.setLockedRarities('titan', ['legendary']);
+
 // Which enemy group lives on each planet (see planets.js "enemies").
-const ENEMY_GROUPS = { moon: crawlers, mars: marsMonsters, europa: europaMonsters };
+const ENEMY_GROUPS = { moon: crawlers, mars: marsMonsters, europa: europaMonsters, titan: titanMonsters };
 
 function currentEnemies() {
   return ENEMY_GROUPS[PLANETS[landedPlanet].enemies] || null;
@@ -1360,6 +1389,7 @@ function finishSleep() {
   crawlers.respawn(moonSurface.x, moonSurface.y);
   marsMonsters.respawn(moonSurface.x, moonSurface.y);
   europaMonsters.respawn(moonSurface.x, moonSurface.y);
+  titanMonsters.respawn(moonSurface.x, moonSurface.y);
 
   showTransmission(
     'LONG-RANGE SCAN COMPLETE\n' +
@@ -1826,7 +1856,7 @@ window.addEventListener('keydown', (event) => {
 
   if (gameMode === 'driving') {
     // Which planet (if any) is close enough to land on?
-    const nearPlanet = ['earth', 'moon', 'mars', 'europa', 'titan'].find(id => {
+    const nearPlanet = ['earth', 'moon', 'mars', 'europa', 'titan', 'umbriel'].find(id => {
       const body = world[id];
       return body && Math.hypot(body.x - ship.x, body.y - ship.y) <= body.radius + 125;
     });
@@ -2324,7 +2354,7 @@ function handleFuelDepletion() {
 // Do we know the way to this world? Yes if we hold its star map, have
 // completed the world before it, or have already been there. (Checking
 // more than the star map keeps the map marker from ever disappearing.)
-const WORLD_BEFORE = { mars: 'moon', europa: 'mars', titan: 'europa' };
+const WORLD_BEFORE = { mars: 'moon', europa: 'mars', titan: 'europa', umbriel: 'titan' };
 
 function knowsRoute(id) {
   const progress = chestQuest.getState();
@@ -2342,17 +2372,19 @@ function knowsRoute(id) {
 // MISSION STATUS (shown in the Earth shipyard)
 // A checklist of everything done so far, and the next thing to do.
 // ==========================================
-const MISSION_WORLDS = ['moon', 'mars', 'europa', 'titan'];
+const MISSION_WORLDS = ['moon', 'mars', 'europa', 'titan', 'umbriel'];
 const WORLD_BOSSES = {
   mars: { name: 'ARES COLOSSUS', defeated: () => marsMonsters.isBossDefeated() },
-  europa: { name: 'CRYOLITH LEVIATHAN', defeated: () => europaMonsters.isBossDefeated() }
+  europa: { name: 'CRYOLITH LEVIATHAN', defeated: () => europaMonsters.isBossDefeated() },
+  titan: { name: 'NITROGEN WRAITH', defeated: () => titanMonsters.isBossDefeated() }
 };
-const NEXT_MAP = { moon: 'MARS', mars: 'EUROPA', europa: 'TITAN', titan: 'URANUS' };
+const NEXT_MAP = { moon: 'MARS', mars: 'EUROPA', europa: 'TITAN', titan: 'URANUS', umbriel: 'NEPTUNE' };
 const WORLD_DIRECTION = {
   moon: 'RIGHT AND UP FROM EARTH',
   mars: 'UP AND LEFT FROM EARTH',
   europa: 'UP AND LEFT, PAST MARS AND THE ASTEROID BELT',
-  titan: 'STRAIGHT LEFT OF EUROPA'
+  titan: 'STRAIGHT LEFT OF EUROPA',
+  umbriel: 'STRAIGHT LEFT OF TITAN, NEXT TO URANUS'
 };
 
 // Modules found on a world (works for the current world and stored ones).
@@ -2426,7 +2458,7 @@ function missionStatus() {
     next = {
       title: 'ALL WORLDS COMPLETE',
       direction: '',
-      steps: ['EVERY WORLD IN THE GAME SO FAR IS DONE', 'URANUS IS COMING IN A LATER UPDATE'],
+      steps: ['EVERY WORLD IN THE GAME SO FAR IS DONE', 'NEPTUNE IS COMING IN A LATER UPDATE'],
       note: 'WELL DONE'
     };
   }
@@ -2435,7 +2467,7 @@ function missionStatus() {
 }
 
 // Where each hidden destination's star map comes from.
-const MAP_SOURCES = { mars: 'THE MOON', europa: 'MARS', titan: 'EUROPA' };
+const MAP_SOURCES = { mars: 'THE MOON', europa: 'MARS', titan: 'EUROPA', umbriel: 'TITAN' };
 
 // ASTEROID BELT: is the ship inside (or right next to) the ring?
 function shipInBelt(margin = 0) {
@@ -2560,7 +2592,7 @@ function updateMusic(dt) {
     situation = 'travel';
 
     // (Earth has no track of its own: the travel theme plays there.)
-    for (const id of ['moon', 'mars', 'europa', 'titan']) {
+    for (const id of ['moon', 'mars', 'europa', 'titan', 'umbriel']) {
       const body = world[id];
 
       if (body && Math.hypot(body.x - ship.x, body.y - ship.y) < body.radius + 1800) {
@@ -2734,6 +2766,7 @@ function createSnapshot() {
       // Mars boss: defeated or not.
       marsBoss: marsMonsters.save(),
       europaBoss: europaMonsters.save(),
+      titanBoss: titanMonsters.save(),
 
       // Learned martial arts.
       skills: martialArts.save()
@@ -2803,6 +2836,8 @@ function loadPendingSave() {
     // Older saves: scrap waiting to be sold becomes balance.
     moonSurface.scraps.cashInInventory();
     partsSystem.setLockedRarities('europa', europaMonsters.isBossDefeated() ? [] : ['legendary']);
+    titanMonsters.load(save.moon?.titanBoss);
+    partsSystem.setLockedRarities('titan', titanMonsters.isBossDefeated() ? [] : ['legendary']);
 
     if (save.moon && PLANETS[landedPlanet].chestQuest) {
       chestQuest.checkModules();
@@ -2895,6 +2930,15 @@ window.NasarethGame = {
     return europaMonsters.list();
   },
 
+  debugTitan() {
+    return titanMonsters.list();
+  },
+
+  // TESTING: set the Titan boss's health (to check its phases).
+  debugTitanBossHp(hp) {
+    titanMonsters.debugSetBossHp(hp);
+  },
+
   // Martial arts + scrap info (for testers).
   debugSkills() {
     return {
@@ -2941,7 +2985,7 @@ createAdminMode({
   giveAllMaps() {
     const saved = chestQuest.save();
     saved.chestDetector = true;
-    saved.maps = { ...saved.maps, mars: true, europa: true, titan: true };
+    saved.maps = { ...saved.maps, mars: true, europa: true, titan: true, umbriel: true };
     chestQuest.load(saved);
     return 'MARS + EUROPA + TITAN MAPS GIVEN';
   },
@@ -2970,7 +3014,7 @@ createAdminMode({
   },
   gotoBoss() {
     if (gameMode !== 'moon') return 'LAND ON A PLANET FIRST';
-    const lair = { mars: [-2800, -2600], europa: [2900, -2700] }[landedPlanet];
+    const lair = { mars: [-2800, -2600], europa: [2900, -2700], titan: [-3000, 2800] }[landedPlanet];
     if (!lair) return 'NO BOSS ON THIS PLANET';
     moonSurface.x = lair[0];
     moonSurface.y = lair[1] + 480;
@@ -3006,7 +3050,7 @@ window.dispatchEvent(new CustomEvent('nasareth:game-ready'));
 // ==========================================
 // WARP DRIVE: jump to Earth or to a completed world.
 // ==========================================
-const WARP_WORLDS = ['moon', 'mars', 'europa', 'titan'];
+const WARP_WORLDS = ['moon', 'mars', 'europa', 'titan', 'umbriel'];
 
 const completedWorlds = () => WARP_WORLDS.filter(id => chestQuest.isBeaten(id));
 
@@ -3354,6 +3398,7 @@ function frame(time) {
       crawlers.tickRespawns(dt, respawnView);
       marsMonsters.tickRespawns(dt, respawnView);
       europaMonsters.tickRespawns(dt, respawnView);
+      titanMonsters.tickRespawns(dt, respawnView);
 
       clockAccumulator += dt * 2;
 
@@ -3509,7 +3554,8 @@ function frame(time) {
     world.discovered = {
       mars: knowsRoute('mars'),
       europa: knowsRoute('europa'),
-      titan: knowsRoute('titan')
+      titan: knowsRoute('titan'),
+      umbriel: knowsRoute('umbriel')
     };
 
     drawWorld(
@@ -3533,6 +3579,8 @@ function frame(time) {
       marsMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
     } else if (landedPlanet === 'europa') {
       europaMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
+    } else if (landedPlanet === 'titan') {
+      titanMonsters.drawBossBar(pixelCtx, width, moonSurface.x, moonSurface.y);
     }
 
     // Red flash when a Lunar Crawler hits the player.
@@ -3554,7 +3602,7 @@ function frame(time) {
 
       const text = empty
         ? '⚠ NO OXYGEN · HEALTH FALLING FAST · GET TO THE SHIP'
-        : `⚠ LOW OXYGEN ${Math.ceil(survival.oxygen)}% · RETURN TO THE SHIP (E)`;
+        : '[Warning] Low Oxygen, Return to the Ship Right Now';
 
       pixelCtx.save();
       pixelCtx.textAlign = 'center';

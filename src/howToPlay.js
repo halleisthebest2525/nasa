@@ -11,7 +11,7 @@ const SECTIONS = [
       'Fly to each world, land, and collect every ship MODULE on its surface.',
       'When all modules are found, a CHEST appears. It holds the star map to the next world.',
       'Go back to EARTH to repair and fit the modules you collected. Then go farther.',
-      'Order: THE MOON → MARS → (Asteroid Belt) → EUROPA → TITAN.'
+      'Order: THE MOON → MARS → (Asteroid Belt) → EUROPA → TITAN → UMBRIEL.'
     ]
   },
   {

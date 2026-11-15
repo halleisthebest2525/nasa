@@ -101,7 +101,7 @@ export const PLANETS = {
     }
   },
 
-  // Titan (moon of Saturn): hazy orange dunes. No monsters yet.
+  // Titan (moon of Saturn): hazy orange dunes.
   titan: {
     id: 'titan',
     name: 'TITAN',
@@ -111,6 +111,7 @@ export const PLANETS = {
     rocks: 1900,
     ridges: 120,
     seed: 150000,
+    enemies: 'titan',  // Methane Crawlers + Nitrogen Wraith (boss)
     modules: 14,
     scrap: { start: 24, maxActive: 40, interval: [4, 8], minPlayerDistance: 320, valueMultiplier: 2.2, common: 38, rare: 40, epic: 22 },
     landing: { fillSeconds: 0.88, zoneSize: 7 },
@@ -127,6 +128,36 @@ export const PLANETS = {
       craterFloor: '#806228',
       rocks: ['#75592a', '#927238', '#c9a862', '#5a431d'],
       mapGround: '#a8853f'
+    }
+  },
+
+  // Umbriel (moon of Uranus): the darkest moon. Cold charcoal ground with
+  // a faint blue tint and a great many craters. No monsters yet.
+  umbriel: {
+    id: 'umbriel',
+    name: 'UMBRIEL',
+    mapTitle: 'UMBRIEL SURFACE MAP',
+    radius: 6400,
+    craters: 420,
+    rocks: 2100,
+    ridges: 90,
+    seed: 200000,
+    modules: 16,
+    scrap: { start: 26, maxActive: 44, interval: [3, 7], minPlayerDistance: 320, valueMultiplier: 2.8, common: 30, rare: 42, epic: 28 },
+    landing: { fillSeconds: 0.82, zoneSize: 6.5 },
+    chestQuest: true,  // the last chest (Neptune star map, for a later update)
+    palette: {
+      space: '#07090c',
+      ground: '#4a5158',
+      patches: '#565e66',
+      ridge: '#3b4147',
+      ridgeLight: '#7c8892',
+      craterShadow: '#32373c',
+      craterRim: '#8a96a0',
+      craterInside: '#262a2e',
+      craterFloor: '#3a4046',
+      rocks: ['#33383d', '#454c53', '#76828c', '#272b2f'],
+      mapGround: '#4a5158'
     }
   }
 };

@@ -237,6 +237,10 @@ export class MoonSurface {
       this.enemies.draw(ctx, cameraX, cameraY, width, height);
       this.enemies.drawSwing(ctx, centerX, centerY);
     }
+
+    // Multiplayer: teammates on this planet (set by main.js).
+    if (this.coopLayer) this.coopLayer.drawSurfaceBodies(ctx, cameraX, cameraY, width, height);
+
     this.drawPlayer(ctx, centerX, centerY);
 
     // Martial arts: punches, kicks and hit sparks (set by main.js).
@@ -263,6 +267,9 @@ export class MoonSurface {
       this.combat.drawGlow(ctx, cameraX, cameraY);
       ctx.restore();
     }
+
+    // Teammates' name tags (or arrows to them) stay visible in the dark.
+    if (this.coopLayer) this.coopLayer.drawSurfaceLabels(ctx, cameraX, cameraY, width, height);
 
     // UI stays visible above the darkness.
     this.drawInteractionPrompt(ctx, centerX, centerY);

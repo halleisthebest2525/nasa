@@ -127,21 +127,31 @@ try {
     await wait(3000);
     const credits = await evaluate(`(() => {
       const root = document.querySelector('#end-credits').shadowRoot;
-      const text = root.querySelector('pre'), glass = root.querySelector('.glass');
-      return { text: text.textContent, image: root.querySelector('img').naturalWidth,
-        fits: text.getBoundingClientRect().height <= glass.clientHeight && text.scrollWidth <= glass.clientWidth };
+      return {
+        credits: [...root.querySelectorAll('.credit')].map(c => [c.querySelector('.role')?.textContent || '', c.querySelector('.name').textContent]),
+        crawling: root.querySelector('#stage').classList.contains('play')
+      };
     })()`);
-    assert.equal(credits.text, 'Winston Lee Developer\nBrandon Kim Developer\nJinmo Koo Designer\nDylan  Son SFX Artist\nDaniel Kim  General Manager\nJoseph You Main Tester/  Debugger\nStudents of Fayston Preparatory of Suji\n\nThank You');
-    assert.ok(credits.image > 0, 'visor artwork loaded');
-    assert.ok(credits.fits, 'credits fit inside the visor');
+    assert.deepEqual(credits.credits, [
+      ['Developer', 'Winston Lee'],
+      ['Developer', 'Brandon Kim'],
+      ['Main Tester', 'Harang You'],
+      ['Art, Co-Developer', 'Jinmo Koo'],
+      ['Audio Director', 'Dylan Son'],
+      ['Manager, Editor', 'Daniel Kim'],
+      ['', 'Students of Fayston Preparatory of Suji']
+    ]);
+    assert.ok(credits.crawling, 'credits crawl like the prologue');
+    await wait(6000);
     await shot('end-credits');
     await size(390, 844);
     await wait(100);
     assert.equal(await evaluate(`(() => {
       const root = document.querySelector('#end-credits').shadowRoot;
-      const r = root.querySelector('.glass').getBoundingClientRect();
-      return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;
-    })()`), true, 'visor credits remain on screen in portrait');
+      const r = root.querySelector('.crawl').getBoundingClientRect();
+      const b = root.querySelector('button').getBoundingClientRect();
+      return r.left >= 0 && r.right <= innerWidth && b.right <= innerWidth && b.bottom <= innerHeight;
+    })()`), true, 'credits and Continue stay on screen in portrait');
     await shot('end-credits-portrait');
     await size(1280, 720);
     const continuePoint = await evaluate(`(() => {
@@ -158,7 +168,7 @@ try {
     assert.equal(saved.snapshot.outroPlayed, true, 'ending flag persists in the save');
     assert.deepEqual(errors.map(e => e.exception?.description || e.text), []);
     assert.deepEqual(warnings, []);
-    console.log('PASS: fitting all five legendary modules starts the ending; credits show exact text on the visor in desktop and portrait; Continue returns to the shipyard; refitting does not replay; completion saves.');
+    console.log('PASS: fitting all five legendary modules starts the ending; credits crawl with the exact names in desktop and portrait; Continue returns to the shipyard; refitting does not replay; completion saves.');
   } else {
   await send('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/NASARETH_FINAL_CUTSCENE/index.html' });
   await wait(800);

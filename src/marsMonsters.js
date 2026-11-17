@@ -10,6 +10,8 @@
 // so they never jump or change size. Sprites face RIGHT.
 // ==========================================
 
+import { createBossCoop } from './coop/bossCoop.js';
+
 const SURFACE_RADIUS = 5200;      // Mars
 const SHIP_SAFE_RADIUS = 300;     // nobody chases you next to the ship
 
@@ -109,6 +111,9 @@ export function createMarsMonsters(assets, callbacks = {}) {
   let playerCooldown = 0;
   let swingTimer = 0;
   let swingAngle = 0;
+
+  // Multiplayer: tougher boss, shared HP bar, METEOR STORM special skill.
+  const coop = createBossCoop({ planet: 'mars', BOSS, bossName: 'ARES COLOSSUS', getBoss: () => boss, callbacks });
 
   // ---------- shared helpers ----------
   function setState(m, state) {
@@ -247,6 +252,8 @@ export function createMarsMonsters(assets, callbacks = {}) {
       stalkers.push(createStalker(p.x, p.y));
     }
 
+    coop.refresh();
+    coop.clear();
     boss = bossDefeated ? null : createBoss();
   }
 
@@ -469,8 +476,11 @@ export function createMarsMonsters(assets, callbacks = {}) {
       s.y += s.vy * dt;
     }
 
+    // Boss attacks use the co-op damage multiplier (x1 in solo).
+    const bossPlayer = coop.scalePlayer(player);
+
     if (boss) {
-      updateBoss(boss, dt, player, playerSafe);
+      updateBoss(boss, dt, bossPlayer, playerSafe);
       boss.x += boss.vx * dt;
       boss.y += boss.vy * dt;
 
@@ -488,6 +498,8 @@ export function createMarsMonsters(assets, callbacks = {}) {
 
       if (boss.fade <= 0) boss = null;
     }
+
+    coop.update(dt, boss, bossPlayer, playerSafe);
 
     // Stalkers push apart, stay on the surface and out of the ship zone.
     for (let i = 0; i < stalkers.length; i++) {
@@ -559,25 +571,34 @@ export function createMarsMonsters(assets, callbacks = {}) {
       const hit = hitTest(boss, px, py, angle, PLAYER_ATTACK_RANGE + 45);
 
       if (hit) {
-        boss.hp -= damage;
-        boss.alerted = true;
-
-        if (!boss.enraged && boss.hp <= BOSS.hp * BOSS.phase2At) {
-          boss.enraged = true;
-          if (callbacks.onBossEnraged) callbacks.onBossEnraged();
-        }
-
-        if (boss.hp <= 0) {
-          setState(boss, 'die');
-        } else if (boss.state === 'idle' || boss.state === 'move') {
-          // Only flinches when not in the middle of an attack.
-          boss.state = 'idle';
-          setState(boss, 'hurt');
-        }
+        damageBoss(damage);
+        coop.reportHit(damage);
       }
     }
 
     return true;
+  }
+
+  // Takes HP off the boss. remote = a hit by another player (multiplayer):
+  // the shared HP bar drops, but this copy of the boss does not flinch.
+  function damageBoss(dealt, remote = false) {
+    if (!boss || boss.state === 'die' || dealt <= 0) return;
+
+    boss.hp -= dealt;
+    if (!remote) boss.alerted = true;
+
+    if (!boss.enraged && boss.hp <= BOSS.hp * BOSS.phase2At) {
+      boss.enraged = true;
+      if (callbacks.onBossEnraged) callbacks.onBossEnraged();
+    }
+
+    if (boss.hp <= 0) {
+      setState(boss, 'die');
+    } else if (!remote && (boss.state === 'idle' || boss.state === 'move')) {
+      // Only flinches when not in the middle of an attack.
+      boss.state = 'idle';
+      setState(boss, 'hurt');
+    }
   }
 
   // Generic hit used by the martial-arts system (martialArts.js).
@@ -631,20 +652,8 @@ export function createMarsMonsters(assets, callbacks = {}) {
 
         let dealt = damage * (energy ? BOSS_ENERGY_RESIST : 1);
 
-        boss.hp -= dealt;
-        boss.alerted = true;
-
-        if (!boss.enraged && boss.hp <= BOSS.hp * BOSS.phase2At) {
-          boss.enraged = true;
-          if (callbacks.onBossEnraged) callbacks.onBossEnraged();
-        }
-
-        if (boss.hp <= 0) {
-          setState(boss, 'die');
-        } else if (boss.state === 'idle' || boss.state === 'move') {
-          boss.state = 'idle';
-          setState(boss, 'hurt');
-        }
+        damageBoss(dealt);
+        coop.reportHit(dealt);
 
         results.push({ x: boss.x, y: boss.y, killed: boss.hp <= 0, boss: true });
       }
@@ -810,6 +819,8 @@ export function createMarsMonsters(assets, callbacks = {}) {
     update,
     draw,
     drawSwing,
+    // Co-op special-skill warnings glow through the darkness.
+    drawGlow: (ctx, cameraX, cameraY) => coop.drawGlow(ctx, cameraX, cameraY),
     drawBossBar,
     playerAttack,
     strike,
@@ -822,6 +833,17 @@ export function createMarsMonsters(assets, callbacks = {}) {
       bossDefeated = Boolean(data && data.bossDefeated);
       if (bossDefeated) boss = null;
       else if (!boss) boss = createBoss();
+    },
+    // MULTIPLAYER: another player's hit, the shared HP, and a team kill.
+    applySharedDamage: amount => damageBoss(amount, true),
+    getBossHp: () => (boss && boss.state !== 'die' ? boss.hp : null),
+    syncBossHp(hp) {
+      if (boss && boss.state !== 'die' && Number.isFinite(hp) && hp < boss.hp) damageBoss(boss.hp - hp, true);
+    },
+    // force = also remove a boss that is still playing its death animation.
+    markDefeated(force = false) {
+      bossDefeated = true;
+      if (force || !boss || boss.state !== 'die') boss = null;
     },
     // Read-only debug info.
     list: () => ({

@@ -1,6 +1,7 @@
 
 import { readSaves, removeSave } from './saveSystem.js';
 import { playPrologue } from './prologue.js';
+import { setupLobby } from './coop/lobby.js';
 import './menuJupiter.js'; // animated Jupiter on the launch page
 
 const menu = document.querySelector('#main-menu');
@@ -10,7 +11,9 @@ const pauseMenu = document.querySelector('#pause-menu');
 const views = {
   home: document.querySelector('#view-home'),
   singleplayer: document.querySelector('#view-singleplayer'),
-  saves: document.querySelector('#view-saves')
+  saves: document.querySelector('#view-saves'),
+  multiplayer: document.querySelector('#view-multiplayer'),
+  lobby: document.querySelector('#view-lobby')
 };
 
 let gameStarted = false;
@@ -223,11 +226,12 @@ function renderSaveList() {
   });
 }
 
-async function startGame(snapshot = null) {
+// options.skipPrologue: multiplayer guests joining a running / loaded game.
+async function startGame(snapshot = null, options = {}) {
   if (gameStarted) return;
 
   gameStarted = true;
-  prologuePlaying = !snapshot;
+  prologuePlaying = !snapshot && !options.skipPrologue;
   if (prologuePlaying) {
     musicRequested = true;
     playMenuMusic();
@@ -240,6 +244,10 @@ async function startGame(snapshot = null) {
   }
 
   try {
+    // Hand the save to main.js in memory as well: two game tabs in one
+    // browser (multiplayer testing) share localStorage and could swap saves.
+    window.__nasarethStartSnapshot = snapshot;
+
     // Blocked storage (private mode, embedded page) must not stop the launch.
     try {
       if (snapshot) {
@@ -252,7 +260,7 @@ async function startGame(snapshot = null) {
     }
 
     // Story belongs to a new expedition, never app startup or save loading.
-    if (!snapshot) await playPrologue();
+    if (prologuePlaying) await playPrologue();
     prologuePlaying = false;
     await import('./main.js');
 
@@ -357,5 +365,8 @@ window.addEventListener('nasareth:saves-updated', () => {
     renderSaveList();
   }
 });
+
+// MULTIPLAYER: host / join screens and the lobby (src/coop/lobby.js).
+setupLobby({ showView, startGame, readSaves });
 
 showView('home');

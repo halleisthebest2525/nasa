@@ -16,6 +16,8 @@
 // never part of the boss sprite. Sprites face RIGHT.
 // ==========================================
 
+import { createBossCoop } from './coop/bossCoop.js';
+
 const SURFACE_RADIUS = 6000;      // Titan
 const SHIP_SAFE_RADIUS = 300;     // nobody chases you next to the ship
 
@@ -137,6 +139,9 @@ export function createTitanMonsters(assets, callbacks = {}) {
   let gasTick = 0;       // one damage tick for ALL gas together (no stacking)
   let lastPlayer = null;
   let clock = 0;
+
+  // Multiplayer: tougher boss, shared HP bar, NITROGEN VORTEX special skill.
+  const coop = createBossCoop({ planet: 'titan', BOSS, bossName: 'NITROGEN WRAITH', getBoss: () => boss, callbacks });
 
   // ---------- shared helpers ----------
   function setState(m, state) {
@@ -285,6 +290,8 @@ export function createTitanMonsters(assets, callbacks = {}) {
       crawlers.push(createCrawler(p.x, p.y));
     }
 
+    coop.refresh();
+    coop.clear();
     boss = bossDefeated ? null : createBoss();
   }
 
@@ -759,15 +766,19 @@ export function createTitanMonsters(assets, callbacks = {}) {
       s.y += s.vy * dt;
     }
 
+    // Boss attacks use the co-op damage multiplier (x1 in solo).
+    const bossPlayer = coop.scalePlayer(player);
+
     if (boss) {
-      updateBoss(boss, dt, player, playerSafe);
+      updateBoss(boss, dt, bossPlayer, playerSafe);
       boss.x += boss.vx * dt;
       boss.y += boss.vy * dt;
 
       if (boss.fade <= 0) boss = null;
     }
 
-    updateEffects(dt, player);
+    updateEffects(dt, bossPlayer);
+    coop.update(dt, boss, bossPlayer, playerSafe);
 
     // Crawlers push apart, stay on the surface and out of the ship zone.
     for (let i = 0; i < crawlers.length; i++) {
@@ -849,30 +860,39 @@ export function createTitanMonsters(assets, callbacks = {}) {
         // Core exposed after Atmospheric Collapse: 25% more damage.
         if (boss.state === 'collapseRecover') dealt *= COLLAPSE.vulnerableMultiplier;
 
-        boss.hp -= dealt;
-        boss.alerted = true;
-
-        const phase = bossPhase(boss);
-
-        if (phase > boss.phase) {
-          boss.phase = phase;
-          if (callbacks.onBossPhase) callbacks.onBossPhase(phase + 1);
-        }
-
-        if (boss.hp <= 0) {
-          boss.state = 'idle';
-          setState(boss, 'die');
-        } else if (boss.state === 'idle' || boss.state === 'move') {
-          // Only flinches when not in the middle of an ability.
-          boss.state = 'idle';
-          setState(boss, 'hurt');
-        }
+        damageBoss(dealt);
+        coop.reportHit(dealt);
 
         results.push({ x: boss.x, y: boss.y, killed: boss.hp <= 0, boss: true });
       }
     }
 
     return results;
+  }
+
+  // Takes HP off the boss. remote = a hit by another player (multiplayer):
+  // the shared HP bar drops, but this copy of the boss does not flinch.
+  function damageBoss(dealt, remote = false) {
+    if (!boss || boss.state === 'die' || dealt <= 0) return;
+
+    boss.hp -= dealt;
+    if (!remote) boss.alerted = true;
+
+    const phase = bossPhase(boss);
+
+    if (phase > boss.phase) {
+      boss.phase = phase;
+      if (callbacks.onBossPhase) callbacks.onBossPhase(phase + 1);
+    }
+
+    if (boss.hp <= 0) {
+      boss.state = 'idle';
+      setState(boss, 'die');
+    } else if (!remote && (boss.state === 'idle' || boss.state === 'move')) {
+      // Only flinches when not in the middle of an ability.
+      boss.state = 'idle';
+      setState(boss, 'hurt');
+    }
   }
 
   // ---------- drawing ----------
@@ -1284,7 +1304,11 @@ export function createTitanMonsters(assets, callbacks = {}) {
     update,
     draw,
     drawSwing,
-    drawGlow,
+    // Boss warnings, plus the co-op special skill.
+    drawGlow(ctx, cameraX, cameraY, width, height) {
+      drawGlow(ctx, cameraX, cameraY, width, height);
+      coop.drawGlow(ctx, cameraX, cameraY);
+    },
     drawBossBar,
     strike,
     tickRespawns,
@@ -1296,6 +1320,17 @@ export function createTitanMonsters(assets, callbacks = {}) {
       bossDefeated = Boolean(data && data.bossDefeated);
       if (bossDefeated) boss = null;
       else if (!boss) boss = createBoss();
+    },
+    // MULTIPLAYER: another player's hit, the shared HP, and a team kill.
+    applySharedDamage: amount => damageBoss(amount, true),
+    getBossHp: () => (boss && boss.state !== 'die' ? boss.hp : null),
+    syncBossHp(hp) {
+      if (boss && boss.state !== 'die' && Number.isFinite(hp) && hp < boss.hp) damageBoss(boss.hp - hp, true);
+    },
+    // force = also remove a boss that is still playing its death animation.
+    markDefeated(force = false) {
+      bossDefeated = true;
+      if (force || !boss || boss.state !== 'die') boss = null;
     },
     // Read-only debug info ("stalkers" = the regular monsters, same name
     // as on Mars and Europa so shared code can read all of them).

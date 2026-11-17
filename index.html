@@ -834,6 +834,80 @@
       color: #8999aa;
     }
 
+    /* MULTIPLAYER MENU */
+    #main-menu .coop-label {
+      display: block;
+      margin: 0 0 8px;
+      color: #8999aa;
+      font: 10px var(--menu-mono);
+      letter-spacing: 1px;
+    }
+
+    #main-menu .coop-input {
+      width: 100%;
+      max-width: 280px;
+      margin-bottom: 14px;
+      padding: 11px 12px;
+      border: 1px solid rgba(180,200,220,.25);
+      background: rgba(5,12,22,.8);
+      color: #edf2f8;
+      font: 14px var(--menu-mono);
+      letter-spacing: 2px;
+      outline: none;
+    }
+
+    #main-menu .coop-input:focus { border-color: var(--menu-accent); }
+
+    #main-menu .coop-join-row {
+      display: flex;
+      gap: 10px;
+      max-width: 280px;
+    }
+
+    #main-menu .coop-join-row .coop-input {
+      margin: 0;
+      text-transform: uppercase;
+    }
+
+    #main-menu .coop-join-row .button { width: auto; flex-shrink: 0; }
+
+    #main-menu .coop-status {
+      min-height: 18px;
+      margin-top: 14px;
+      color: #e0b47a;
+      font: 11px var(--menu-mono);
+      letter-spacing: 1px;
+    }
+
+    #main-menu .coop-players {
+      display: grid;
+      gap: 8px;
+      max-width: 360px;
+      margin-bottom: 16px;
+    }
+
+    #main-menu .coop-player {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border: 1px solid rgba(180,200,220,.16);
+      background: rgba(5,12,22,.72);
+      font: 13px var(--menu-mono);
+      letter-spacing: 1px;
+    }
+
+    #main-menu .coop-player small { color: #8999aa; }
+
+    #main-menu .coop-difficulty {
+      max-width: 420px;
+      margin-bottom: 18px;
+      color: #c3a77a;
+      font: 11px/1.7 var(--menu-mono);
+      letter-spacing: 1px;
+    }
+
+    #lobby-code { color: var(--menu-accent); letter-spacing: 6px; }
+
     @media (max-width: 650px) {
       #main-menu::after,
       #menu-jupiter {
@@ -949,7 +1023,46 @@
             <button class="button button-primary" id="singleplayer-button">
               SINGLEPLAYER <span style="float:right">↗</span>
             </button>
+            <button class="button button-secondary" id="multiplayer-button">
+              MULTIPLAYER · 2-4 <span style="float:right">↗</span>
+            </button>
           </div>
+        </section>
+
+        <section class="subview" id="view-multiplayer" hidden>
+          <div class="menu-kicker">FLIGHT OPERATIONS / CO-OP MODE</div>
+          <h2 class="subview-heading">MULTIPLAYER</h2>
+          <p class="subview-subtitle">
+            UP TO 4 PILOTS. ONE MISSION. SHARED SCRAPS, MODULES AND STORY.<br>
+            BOSSES ARE TOUGHER AND USE SPECIAL SKILLS IN CO-OP.
+          </p>
+          <label class="coop-label" for="coop-name">PILOT NAME</label>
+          <input class="coop-input" id="coop-name" maxlength="14" value="Pilot" autocomplete="off">
+          <div class="subview-actions">
+            <button class="button button-primary" id="coop-host">HOST A GAME <span style="float:right">↗</span></button>
+          </div>
+          <label class="coop-label" for="coop-code" style="margin-top:22px">ROOM CODE</label>
+          <div class="coop-join-row">
+            <input class="coop-input" id="coop-code" maxlength="8" placeholder="ABCDE" autocomplete="off">
+            <button class="button button-secondary" id="coop-join">JOIN</button>
+          </div>
+          <div class="coop-status" id="coop-status"></div>
+          <button class="back-button" id="back-home-coop">← BACK</button>
+        </section>
+
+        <section class="subview" id="view-lobby" hidden>
+          <div class="menu-kicker">FLIGHT OPERATIONS / CO-OP LOBBY</div>
+          <h2 class="subview-heading">ROOM <span id="lobby-code">-----</span></h2>
+          <p class="subview-subtitle" id="lobby-hint">SHARE THIS CODE WITH YOUR CREW.</p>
+          <div class="coop-players" id="lobby-players"></div>
+          <div class="coop-difficulty" id="lobby-difficulty"></div>
+          <div class="subview-actions" id="lobby-host-actions">
+            <button class="button button-primary" id="lobby-start-new">START NEW GAME <span style="float:right">↗</span></button>
+            <select class="coop-input" id="lobby-save" aria-label="Saved game to continue"></select>
+            <button class="button button-secondary" id="lobby-start-save">CONTINUE SAVED GAME</button>
+          </div>
+          <div class="coop-status" id="lobby-status"></div>
+          <button class="back-button" id="lobby-leave">← LEAVE ROOM</button>
         </section>
 
         <section class="subview" id="view-singleplayer" hidden>

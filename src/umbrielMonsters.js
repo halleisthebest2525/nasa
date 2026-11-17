@@ -22,6 +22,8 @@
 // Effects are drawn by code, never part of the boss sprite. Sprites face RIGHT.
 // ==========================================
 
+import { createBossCoop } from './coop/bossCoop.js';
+
 const SURFACE_RADIUS = 6400;      // Umbriel
 const SHIP_SAFE_RADIUS = 300;     // nobody chases you next to the ship
 
@@ -161,6 +163,9 @@ export function createUmbrielMonsters(assets, callbacks = {}) {
   let waves = [];        // visual shockwaves: { x, y, radius, time, duration }
   let wellTick = 0;      // one damage tick for ALL wells together (no stacking)
   let clock = 0;
+
+  // Multiplayer: tougher boss, shared HP bar, VOID BARRAGE special skill.
+  const coop = createBossCoop({ planet: 'umbriel', BOSS, bossName: 'NOCTURNUS', getBoss: () => boss, callbacks });
 
   // ---------- shared helpers ----------
   function setState(m, state) {
@@ -319,6 +324,8 @@ export function createUmbrielMonsters(assets, callbacks = {}) {
       reavers.push(createReaver(p.x, p.y));
     }
 
+    coop.refresh();
+    coop.clear();
     boss = bossDefeated ? null : createBoss();
   }
 
@@ -914,15 +921,19 @@ export function createUmbrielMonsters(assets, callbacks = {}) {
       }
     }
 
+    // Boss attacks use the co-op damage multiplier (x1 in solo).
+    const bossPlayer = coop.scalePlayer(player);
+
     if (boss) {
-      updateBoss(boss, dt, player, playerSafe);
+      updateBoss(boss, dt, bossPlayer, playerSafe);
       boss.x += boss.vx * dt;
       boss.y += boss.vy * dt;
 
       if (boss.fade <= 0) boss = null;
     }
 
-    updateEffects(dt, player);
+    updateEffects(dt, bossPlayer);
+    coop.update(dt, boss, bossPlayer, playerSafe);
 
     // Reavers push apart, stay on the surface and out of the ship zone.
     for (let i = 0; i < reavers.length; i++) {
@@ -1004,36 +1015,46 @@ export function createUmbrielMonsters(assets, callbacks = {}) {
         // Core exposed after the Eclipse: 50% more damage.
         if (boss.state === 'eclipseRecover') dealt *= ECLIPSE.vulnerableMultiplier;
 
-        boss.hp -= dealt;
-        boss.alerted = true;
-
-        const phase = bossPhase(boss);
-
-        if (boss.hp <= 0) {
-          boss.state = 'idle';
-          setState(boss, 'die');
-        } else if (phase > boss.phase) {
-          // PHASE TRANSITION: untouchable, then a wave and summoned reavers.
-          boss.phase = phase;
-          boss.waveDone = false;
-          boss.wellTargets = null;
-          boss.blinkTarget = null;
-          boss.nearTimer = 0;
-          if (phase >= 2) boss.eclipseCooldown = ECLIPSE.firstUse;
-          startStep(boss, 'phaseShift', BOSS.transition.time);
-          if (callbacks.onBossPhase) callbacks.onBossPhase(phase + 1);
-        } else if ((boss.state === 'idle' || boss.state === 'move') && boss.flinchTimer <= 0) {
-          // It flinches only now and then, and never mid-ability.
-          boss.flinchTimer = BOSS.flinchCooldown[boss.phase];
-          boss.state = 'idle';
-          setState(boss, 'hurt');
-        }
+        damageBoss(dealt);
+        coop.reportHit(dealt);
 
         results.push({ x: boss.x, y: boss.y, killed: boss.hp <= 0, boss: true });
       }
     }
 
     return results;
+  }
+
+  // Takes HP off the boss. remote = a hit by another player (multiplayer):
+  // the shared HP bar drops, but this copy of the boss does not flinch.
+  // Phase changes still happen on every player's screen.
+  function damageBoss(dealt, remote = false) {
+    if (!boss || boss.state === 'die' || dealt <= 0) return;
+
+    boss.hp -= dealt;
+    if (!remote) boss.alerted = true;
+
+    const phase = bossPhase(boss);
+
+    if (boss.hp <= 0) {
+      boss.state = 'idle';
+      setState(boss, 'die');
+    } else if (phase > boss.phase) {
+      // PHASE TRANSITION: untouchable, then a wave and summoned reavers.
+      boss.phase = phase;
+      boss.waveDone = false;
+      boss.wellTargets = null;
+      boss.blinkTarget = null;
+      boss.nearTimer = 0;
+      if (phase >= 2) boss.eclipseCooldown = ECLIPSE.firstUse;
+      startStep(boss, 'phaseShift', BOSS.transition.time);
+      if (callbacks.onBossPhase) callbacks.onBossPhase(phase + 1);
+    } else if (!remote && (boss.state === 'idle' || boss.state === 'move') && boss.flinchTimer <= 0) {
+      // It flinches only now and then, and never mid-ability.
+      boss.flinchTimer = BOSS.flinchCooldown[boss.phase];
+      boss.state = 'idle';
+      setState(boss, 'hurt');
+    }
   }
 
   // ---------- drawing ----------
@@ -1463,7 +1484,11 @@ export function createUmbrielMonsters(assets, callbacks = {}) {
     update,
     draw,
     drawSwing,
-    drawGlow,
+    // Boss warnings, plus the co-op special skill.
+    drawGlow(ctx, cameraX, cameraY, width, height) {
+      drawGlow(ctx, cameraX, cameraY, width, height);
+      coop.drawGlow(ctx, cameraX, cameraY);
+    },
     drawBossBar,
     strike,
     tickRespawns,
@@ -1475,6 +1500,17 @@ export function createUmbrielMonsters(assets, callbacks = {}) {
       bossDefeated = Boolean(data && data.bossDefeated);
       if (bossDefeated) boss = null;
       else if (!boss) boss = createBoss();
+    },
+    // MULTIPLAYER: another player's hit, the shared HP, and a team kill.
+    applySharedDamage: amount => damageBoss(amount, true),
+    getBossHp: () => (boss && boss.state !== 'die' ? boss.hp : null),
+    syncBossHp(hp) {
+      if (boss && boss.state !== 'die' && Number.isFinite(hp) && hp < boss.hp) damageBoss(boss.hp - hp, true);
+    },
+    // force = also remove a boss that is still playing its death animation.
+    markDefeated(force = false) {
+      bossDefeated = true;
+      if (force || !boss || boss.state !== 'die') boss = null;
     },
     // Read-only debug info ("stalkers" = the regular monsters, same name
     // as on the other worlds so shared code can read all of them).

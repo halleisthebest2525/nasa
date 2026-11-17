@@ -271,6 +271,11 @@ function createParts(planet = 'moon') {
   return parts;
 }
 
+// MULTIPLAYER: the host rolls each planet's modules once for the whole team.
+export function generatePlanetParts(planet) {
+  return createParts(planet);
+}
+
 // Update older Umbriel saves without rerolling their loot or removing anything
 // already earned from the inventory. Boss rewards remain separate bonus drops.
 export function normalizeUmbrielItems(items) {

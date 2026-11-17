@@ -33,6 +33,11 @@ import { sfx } from './sfx.js';
 import { createWarpMenu } from './warp.js';
 import { createHowToPlay } from './howToPlay.js';
 import { BELT } from './world.js';
+import { attachCoopGame } from './coop/coopGame.js';
+import { coopState } from './coop/state.js';
+
+// MULTIPLAYER link (null in single player). Set up near the end of this file.
+let coop = null;
 
 const canvas = document.querySelector('#space');
 const ctx = canvas.getContext('2d');
@@ -137,7 +142,7 @@ const planetLog = createPlanetLog({
     const items =
       planet === landedPlanet && landedOnMoon !== undefined && moonSurface.planet.id === planet
         ? partsSystem.getParts().items
-        : planetStates[planet]?.partItems;
+        : planetStates[planet]?.partItems || coop?.itemsFor(planet);
 
     if (!items) return null;
 
@@ -146,10 +151,32 @@ const planetLog = createPlanetLog({
   }
 });
 
+// BOSS REWARDS: placed straight away in single player. In multiplayer the
+// host places them once for the whole team (rewards = [{ x, y, rarity, type }]).
+function dropBossRewards(planet, rewards) {
+  if (coop?.isActive()) coop.reportBossDefeated(planet, rewards);
+  else rewards.forEach(reward => partsSystem.addRewardPart(reward.x, reward.y, reward.rarity, reward.type));
+}
+
+const randomModuleType = () => {
+  const types = partsSystem.types();
+  return types[Math.floor(Math.random() * types.length)];
+};
+
+// MULTIPLAYER: every hit on a boss is shared (one HP bar for the team),
+// and bosses announce their co-op special skill.
+function bossCoopCallbacks(planet) {
+  return {
+    onBossDamaged: amount => coop?.reportBossDamage(planet, amount),
+    onCoopSkill: text => showMoonMessage(text)
+  };
+}
+
 const marsMonsters = createMarsMonsters(assets, {
+  ...bossCoopCallbacks('mars'),
   onBossDefeated(x, y) {
     // The strongest Mars item: a guaranteed MYTHIC module where it fell.
-    partsSystem.addRewardPart(x, y, 'mythic');
+    dropBossRewards('mars', [{ x, y, rarity: 'mythic', type: randomModuleType() }]);
     // From now on mythic modules can also drop normally on Mars.
     partsSystem.setLockedRarities('mars', []);
 
@@ -170,9 +197,10 @@ partsSystem.setLockedRarities('mars', ['mythic']);
 
 // EUROPA: Frost Skitters and the Cryolith Leviathan.
 const europaMonsters = createEuropaMonsters(assets, {
+  ...bossCoopCallbacks('europa'),
   onBossDefeated(x, y) {
     // The strongest Europa item: a guaranteed LEGENDARY module where it fell.
-    partsSystem.addRewardPart(x, y, 'legendary');
+    dropBossRewards('europa', [{ x, y, rarity: 'legendary', type: randomModuleType() }]);
     partsSystem.setLockedRarities('europa', []);
 
     showTransmission(
@@ -197,9 +225,10 @@ partsSystem.setLockedRarities('europa', ['legendary']);
 
 // TITAN: Methane Crawlers and the Nitrogen Wraith.
 const titanMonsters = createTitanMonsters(assets, {
+  ...bossCoopCallbacks('titan'),
   onBossDefeated(x, y) {
     // The strongest Titan item: a guaranteed LEGENDARY module where it fell.
-    partsSystem.addRewardPart(x, y, 'legendary');
+    dropBossRewards('titan', [{ x, y, rarity: 'legendary', type: randomModuleType() }]);
     partsSystem.setLockedRarities('titan', []);
 
     showTransmission(
@@ -224,15 +253,16 @@ partsSystem.setLockedRarities('titan', ['legendary']);
 
 // UMBRIEL: Void Reavers and Nocturnus, the Void Sovereign (final boss).
 const umbrielMonsters = createUmbrielMonsters(assets, {
+  ...bossCoopCallbacks('umbriel'),
   onBossDefeated(x, y) {
     // The final prize: one LEGENDARY module of EVERY type, in a circle
     // where it fell (picked up like any module, fitted at Earth).
     const types = ['engine', 'fuelTank', 'energyModule', 'hullCargo', 'computer'];
 
-    types.forEach((type, i) => {
+    dropBossRewards('umbriel', types.map((type, i) => {
       const angle = -Math.PI / 2 + i / types.length * Math.PI * 2;
-      partsSystem.addRewardPart(x + Math.cos(angle) * 90, y + Math.sin(angle) * 90, 'legendary', type);
-    });
+      return { x: x + Math.cos(angle) * 90, y: y + Math.sin(angle) * 90, rarity: 'legendary', type };
+    }));
 
     showTransmission(
       'NOCTURNUS DESTROYED\n' +
@@ -425,6 +455,10 @@ function switchPlanet(id) {
     partsSystem.getParts().items = [];
     partsSystem.respawn(id);
   }
+
+  // MULTIPLAYER: every player sees the same modules on this planet.
+  const teamItems = coop?.itemsFor(id);
+  if (teamItems) partsSystem.getParts().items = teamItems;
 
   moonSurface.setPlanet(PLANETS[id]);
   applyPlanetFeatures();
@@ -741,8 +775,37 @@ gameOverScreen.innerHTML = `
 document.body.appendChild(gameOverScreen);
 
 document.querySelector('#restart-game').addEventListener('click', () => {
+  // Multiplayer: reloading would leave the room, so respawn instead.
+  if (coop?.isActive()) {
+    coopRecover();
+    return;
+  }
   location.reload();
 });
+
+// MULTIPLAYER RESPAWN: back on your feet next to your ship, fully repaired.
+// The team's progress is never lost.
+function coopRecover() {
+  gameOverScreen.style.display = 'none';
+  gameOver = false;
+
+  hull = hullMax;
+  survival.fuel = survival.maxFuel;
+  survival.health = 100;
+  survival.oxygen = 100;
+  survival.shipOxygen = 100;
+  survival.stamina = 100;
+  survival.staminaExhausted = false;
+
+  ship.vx = 0;
+  ship.vy = 0;
+  ship.boosting = false;
+
+  if (gameMode === 'moon') moonSurface.enter();
+
+  updateHull();
+  showTransmission('EMERGENCY RECOVERY\nYOU ARE BACK AT YOUR SHIP', '#8bd0b7');
+}
 
 // SPACESHIP COMPUTER
 const computerScreen = document.createElement('div');
@@ -1264,6 +1327,7 @@ function updateHull() {
   if (hull <= 0 && !gameOver) {
     hull = 0;
     gameOver = true;
+    coop?.reportDowned('SHIP DESTROYED');
 
     ship.vx = 0;
     ship.vy = 0;
@@ -1322,13 +1386,21 @@ window.addEventListener('nasareth:modules-changed', () => {
   const installed = partsSystem.getInstalled();
   if (!outroPlayed && earthBase.isOpen() &&
       partsSystem.types().every(type => installed[type] === 'legendary')) {
-    outroPlayed = true;
-    playOutro().then(() => playEndCredits()).catch(error => {
-      outroPlayed = false;
-      console.error('Could not play the final cutscene:', error);
-    });
+    // Multiplayer: the whole team watches the ending together.
+    coop?.reportEnding();
+    playEnding();
   }
 });
+
+// THE ENDING: final cutscene, then the end credits (solo and multiplayer).
+function playEnding() {
+  if (outroPlayed) return;
+  outroPlayed = true;
+  playOutro().then(() => playEndCredits()).catch(error => {
+    outroPlayed = false;
+    console.error('Could not play the final cutscene:', error);
+  });
+}
 
 updateModuleEffects(false);
 
@@ -1340,6 +1412,7 @@ function triggerLifeSupportFailure(
   if (gameOver) return;
 
   gameOver = true;
+  coop?.reportDowned(detail);
 
   ship.vx = 0;
   ship.vy = 0;
@@ -2460,7 +2533,7 @@ const WORLD_DIRECTION = {
 function worldModules(id) {
   const items = id === landedPlanet
     ? partsSystem.getParts().items
-    : planetStates[id]?.partItems;
+    : planetStates[id]?.partItems || coop?.itemsFor(id);
 
   if (!items) return null;
 
@@ -2886,7 +2959,12 @@ function saveCurrentGame(name = 'Expedition') {
 }
 
 function loadPendingSave() {
-  const pending = localStorage.getItem('nasareth.pending-load');
+  // The menu hands the save over in memory (null = new game); without the
+  // menu (tests, older paths) it comes from localStorage.
+  const handed = window.__nasarethStartSnapshot;
+  const pending = handed !== undefined
+    ? (handed ? JSON.stringify(handed) : null)
+    : localStorage.getItem('nasareth.pending-load');
 
   if (!pending) return;
 
@@ -2998,6 +3076,77 @@ function loadPendingSave() {
 }
 
 loadPendingSave();
+
+// ==========================================
+// MULTIPLAYER (only when the game was started from the multiplayer lobby).
+// Gives the co-op module what it needs; it returns null in single player.
+// ==========================================
+coop = attachCoopGame({
+  partsSystem,
+  chestQuest,
+  moonSurface,
+  bosses: { mars: marsMonsters, europa: europaMonsters, titan: titanMonsters, umbriel: umbrielMonsters },
+  getLandedPlanet: () => landedPlanet,
+
+  // Where this player is right now (sent to the other players).
+  getState() {
+    const onSurface = gameMode === 'moon' || (gameMode === 'sleeping' && modeBeforeSleep === 'moon');
+    let mode = 'space';
+    if (onSurface) mode = 'surface';
+    else if (landedOnMoon) mode = 'ship';
+    else if (earthBase.isOpen()) mode = 'earth';
+
+    return {
+      mode,
+      planet: onSurface || landedOnMoon ? landedPlanet : null,
+      x: onSurface ? moonSurface.x : ship.x,
+      y: onSurface ? moonSurface.y : ship.y,
+      angle: onSurface ? moonSurface.angle : ship.angle,
+      moving: onSurface ? moonSurface.moving : Math.abs(ship.speed || 0) > 5,
+      health: survival.health
+    };
+  },
+
+  // Modules lying on a planet (the loaded one, or a stored one).
+  getPlanetItems(planet) {
+    if (planet === landedPlanet) return partsSystem.getParts().items;
+    return planetStates[planet]?.partItems || null;
+  },
+  setPlanetItems(planet, items) {
+    if (planet === landedPlanet) partsSystem.getParts().items = items;
+    else if (planetStates[planet]) planetStates[planet].partItems = items;
+  },
+
+  unlockBossRarities: planet => partsSystem.setLockedRarities(planet, []),
+  onModulesChanged() {
+    window.dispatchEvent(new CustomEvent('nasareth:modules-changed', { detail: partsSystem.getStats() }));
+  },
+  showMessage(text) {
+    if (gameMode === 'moon') showMoonMessage(text);
+    else showTransmission(text, '#c9b8a0');
+  },
+  showTransmission: (text, color) => showTransmission(text, color),
+  playEnding: () => playEnding(),
+
+  // Another player's astronaut, drawn like ours.
+  drawAstronaut(context, x, y, angle) {
+    const ownAngle = moonSurface.angle;
+    moonSurface.angle = angle;
+    moonSurface.drawPlayer(context, x, y);
+    moonSurface.angle = ownAngle;
+  },
+
+  // The host left: back to single player.
+  onDetach() {
+    document.querySelector('#restart-game').textContent = 'RESTART MISSION';
+  }
+});
+
+if (coop) {
+  moonSurface.coopLayer = coop;
+  document.querySelector('#restart-game').textContent = 'RESPAWN';
+  console.log(`Multiplayer: ${coopState.difficulty.label}`);
+}
 
 // New game (or a save made before lift-off): start on Earth.
 if (!launchComplete && !gameOver) {
@@ -3356,6 +3505,9 @@ function frame(time) {
 
   previous = time;
 
+  // Multiplayer: send our position, receive the team's (runs even when paused).
+  if (coop) coop.tick(dt);
+
   const travelingThisFrame = warpTravel.isActive();
   if (travelingThisFrame) warpTravel.update(document.hidden ? 0 : travelDt);
 
@@ -3559,6 +3711,9 @@ function frame(time) {
       minimapOpen,
       texturedBackground
     );
+
+    // Multiplayer: the other players' ships (or arrows pointing to them).
+    if (coop && !minimapOpen) coop.drawSpace(pixelCtx, ship, width, height, shipSprite);
 
     drawParticles(pixelCtx);
     pixelCtx.restore();

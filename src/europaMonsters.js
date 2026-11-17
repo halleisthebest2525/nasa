@@ -15,6 +15,8 @@
 // sprites themselves are never stretched or recoloured.
 // ==========================================
 
+import { createBossCoop } from './coop/bossCoop.js';
+
 const SURFACE_RADIUS = 5600;      // Europa
 const SHIP_SAFE_RADIUS = 300;     // nobody chases you next to the ship
 
@@ -142,6 +144,9 @@ export function createEuropaMonsters(assets, callbacks = {}) {
   let swingTimer = 0;
   let swingAngle = 0;
   let clock = 0;
+
+  // Multiplayer: tougher boss, shared HP bar, GLACIAL NOVA special skill.
+  const coop = createBossCoop({ planet: 'europa', BOSS, bossName: 'CRYOLITH LEVIATHAN', getBoss: () => boss, callbacks });
 
   // ---------- shared helpers ----------
   function setState(m, state) {
@@ -287,6 +292,8 @@ export function createEuropaMonsters(assets, callbacks = {}) {
       skitters.push(createSkitter(p.x, p.y));
     }
 
+    coop.refresh();
+    coop.clear();
     boss = bossDefeated ? null : createBoss();
   }
 
@@ -674,8 +681,11 @@ export function createEuropaMonsters(assets, callbacks = {}) {
       s.y += s.vy * dt;
     }
 
+    // Boss attacks use the co-op damage multiplier (x1 in solo).
+    const bossPlayer = coop.scalePlayer(player);
+
     if (boss) {
-      updateBoss(boss, dt, player, playerSafe);
+      updateBoss(boss, dt, bossPlayer, playerSafe);
       boss.x += boss.vx * dt;
       boss.y += boss.vy * dt;
 
@@ -694,7 +704,8 @@ export function createEuropaMonsters(assets, callbacks = {}) {
       if (boss.fade <= 0) boss = null;
     }
 
-    updateEffects(dt, player);
+    updateEffects(dt, bossPlayer);
+    coop.update(dt, boss, bossPlayer, playerSafe);
 
     // Skitters push apart, stay on the surface and out of the ship zone.
     for (let i = 0; i < skitters.length; i++) {
@@ -767,28 +778,38 @@ export function createEuropaMonsters(assets, callbacks = {}) {
 
       if (hit) {
         // Extra damage while it recovers from Absolute Zero.
-        boss.hp -= damage * (boss.state === 'zeroRecover' ? ZERO.vulnerableMultiplier : 1);
-        boss.alerted = true;
+        const dealt = damage * (boss.state === 'zeroRecover' ? ZERO.vulnerableMultiplier : 1);
         boss.hitFlash = 0.12;
-
-        const phase = bossPhase(boss);
-
-        if (phase > boss.phase) {
-          boss.phase = phase;
-          if (callbacks.onBossPhase) callbacks.onBossPhase(phase + 1);
-        }
-
-        if (boss.hp <= 0) {
-          setState(boss, 'die');
-        } else if (boss.state === 'idle' || boss.state === 'move') {
-          // Only flinches when not in the middle of an attack.
-          boss.state = 'idle';
-          setState(boss, 'hurt');
-        }
+        damageBoss(dealt);
+        coop.reportHit(dealt);
       }
     }
 
     return true;
+  }
+
+  // Takes HP off the boss. remote = a hit by another player (multiplayer):
+  // the shared HP bar drops, but this copy of the boss does not flinch.
+  function damageBoss(dealt, remote = false) {
+    if (!boss || boss.state === 'die' || dealt <= 0) return;
+
+    boss.hp -= dealt;
+    if (!remote) boss.alerted = true;
+
+    const phase = bossPhase(boss);
+
+    if (phase > boss.phase) {
+      boss.phase = phase;
+      if (callbacks.onBossPhase) callbacks.onBossPhase(phase + 1);
+    }
+
+    if (boss.hp <= 0) {
+      setState(boss, 'die');
+    } else if (!remote && (boss.state === 'idle' || boss.state === 'move')) {
+      // Only flinches when not in the middle of an attack.
+      boss.state = 'idle';
+      setState(boss, 'hurt');
+    }
   }
 
   // Generic hit used by the martial-arts system (martialArts.js).
@@ -845,22 +866,8 @@ export function createEuropaMonsters(assets, callbacks = {}) {
         // Extra damage while it recovers from Absolute Zero.
         if (boss.state === 'zeroRecover') dealt *= ZERO.vulnerableMultiplier;
 
-        boss.hp -= dealt;
-        boss.alerted = true;
-
-        const phase = bossPhase(boss);
-
-        if (phase > boss.phase) {
-          boss.phase = phase;
-          if (callbacks.onBossPhase) callbacks.onBossPhase(phase + 1);
-        }
-
-        if (boss.hp <= 0) {
-          setState(boss, 'die');
-        } else if (boss.state === 'idle' || boss.state === 'move') {
-          boss.state = 'idle';
-          setState(boss, 'hurt');
-        }
+        damageBoss(dealt);
+        coop.reportHit(dealt);
 
         results.push({ x: boss.x, y: boss.y, killed: boss.hp <= 0, boss: true });
       }
@@ -1256,7 +1263,11 @@ export function createEuropaMonsters(assets, callbacks = {}) {
     update,
     draw,
     drawSwing,
-    drawGlow,
+    // Boss warnings, plus the co-op special skill.
+    drawGlow(ctx, cameraX, cameraY, width, height) {
+      drawGlow(ctx, cameraX, cameraY, width, height);
+      coop.drawGlow(ctx, cameraX, cameraY);
+    },
     drawBossBar,
     playerAttack,
     strike,
@@ -1269,6 +1280,17 @@ export function createEuropaMonsters(assets, callbacks = {}) {
       bossDefeated = Boolean(data && data.bossDefeated);
       if (bossDefeated) boss = null;
       else if (!boss) boss = createBoss();
+    },
+    // MULTIPLAYER: another player's hit, the shared HP, and a team kill.
+    applySharedDamage: amount => damageBoss(amount, true),
+    getBossHp: () => (boss && boss.state !== 'die' ? boss.hp : null),
+    syncBossHp(hp) {
+      if (boss && boss.state !== 'die' && Number.isFinite(hp) && hp < boss.hp) damageBoss(boss.hp - hp, true);
+    },
+    // force = also remove a boss that is still playing its death animation.
+    markDefeated(force = false) {
+      bossDefeated = true;
+      if (force || !boss || boss.state !== 'die') boss = null;
     },
     // Read-only debug info ("stalkers" = the regular monsters, same name
     // as on Mars so shared code can read both).

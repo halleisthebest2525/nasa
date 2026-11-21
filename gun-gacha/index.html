@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gun Gacha</title>
+  <link rel="stylesheet" href="./style.css">
+  <!-- Font loads in the background so the game never waits for it -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,700;1,600;1,800&display=swap" media="print" onload="this.media='all'">
+</head>
+<body>
+  <header class="top">
+    <h1>GUN <span>GACHA</span></h1>
+    <div class="top-buttons">
+      <button type="button" id="mute" class="btn btn-ghost">🔊 Sound on</button>
+      <button type="button" id="reset" class="btn btn-ghost">Reset save</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel clicker">
+      <div class="money" id="money">$0</div>
+      <div class="stats">
+        <div><span class="label">Per click</span><span id="per-click">$1</span></div>
+        <div><span class="label">Auto clicks / sec</span><span id="cps">0</span></div>
+        <div><span class="label">Income / sec</span><span id="per-sec">$0</span></div>
+        <div><span class="label">Total clicks</span><span id="total-clicks">0</span></div>
+      </div>
+
+      <div class="gun-stage">
+        <button type="button" id="gun-button" class="gun-button" aria-label="Shoot to earn money"></button>
+        <div id="float-layer" class="float-layer"></div>
+      </div>
+      <div class="gun-name" id="gun-name"></div>
+      <div class="gun-meta" id="gun-meta"></div>
+      <p class="hint">Click the gun to earn money. Guns raise $ per click, attachments click for you.</p>
+    </section>
+
+    <section class="panel shop">
+      <h2>Cases</h2>
+      <p class="sub">Every case you open makes the next one 8% more expensive.</p>
+      <div id="cases" class="cases"></div>
+    </section>
+
+    <section class="panel inventory">
+      <div class="inventory-head">
+        <h2>Inventory</h2>
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab active" data-tab="gun">Guns</button>
+          <button type="button" class="tab" data-tab="att">Attachments</button>
+        </div>
+      </div>
+      <p class="sub" id="inventory-summary"></p>
+      <div id="inventory-grid" class="grid"></div>
+    </section>
+  </main>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h2 id="modal-title"></h2>
+      <div id="reel" class="reel">
+        <div id="reel-strip" class="reel-strip"></div>
+        <div class="reel-marker"></div>
+      </div>
+      <div id="reveal" class="reveal"></div>
+      <div class="modal-actions">
+        <button type="button" id="modal-skip" class="btn btn-ghost">Skip</button>
+        <button type="button" id="modal-close" class="btn btn-open" hidden>Collect</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
